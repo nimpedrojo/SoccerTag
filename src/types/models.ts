@@ -19,7 +19,14 @@ export interface MatchMeta {
   createdAt: string;
   teams: { home: string; away: string };
   configVersion: number;
+  side?: "home" | "away";
+  starters?: string[]; // jersey numbers
+  fieldName?: string;
+  category?: string;
+  notes?: string;
 }
+
+export type TeamRef = "home" | "away";
 
 export interface ExportBundle {
   meta: MatchMeta;

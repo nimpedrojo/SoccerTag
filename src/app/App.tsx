@@ -5,6 +5,7 @@ import { categoryConfig, CategoryKey } from "../config/categories";
 import { useSelections } from "../features/selections/useSelections";
 import { useMatchTimer } from "../features/timer/useMatchTimer";
 import { createMatchEvent, persistMatchEvent } from "../services/events";
+import { saveMatchMeta } from "../db";
 
 const possessionStates = ["Posesión propia", "No posesión (S)", "Posesión rival"];
 const periods: Array<{ key: "1T" | "2T"; label: string }> = [
@@ -21,6 +22,14 @@ export const App: React.FC = () => {
   const [matchId, setMatchId] = useState("match-001");
   const [saveStatus, setSaveStatus] = useState<string>("");
   const [zone, setZone] = useState<"bajo" | "medio" | "alto" | null>(null);
+  const [setupDone, setSetupDone] = useState(false);
+  const [teams, setTeams] = useState<{ home: string; away: string }>({
+    home: "Local",
+    away: "Visitante",
+  });
+  const [side, setSide] = useState<"home" | "away">("home");
+  const [starters, setStarters] = useState<string[]>([]);
+  const [teamRef, setTeamRef] = useState<"home" | "away">("home");
 
   const handleSaveEvent = async () => {
     if (!matchId.trim()) {
@@ -36,6 +45,7 @@ export const App: React.FC = () => {
         selections: {
           ...toObject(),
           zonaCampo: zone ? [zone] : [],
+          equipo: [teams[teamRef] ?? teamRef],
         },
       });
       await persistMatchEvent(event);
@@ -49,6 +59,20 @@ export const App: React.FC = () => {
 
   return (
     <div className="screen">
+      {!setupDone && (
+        <SetupScreen
+          onComplete={(meta) => {
+            setMatchId(meta.matchId);
+            setSetupDone(true);
+            setTeams({ home: meta.home, away: meta.away });
+            setSide(meta.side);
+            setStarters(meta.starters);
+            setTeamRef(meta.side);
+          }}
+        />
+      )}
+
+      {setupDone && (
       <header className="topbar">
         <div className="controls horizontal">
           <div className="periods">
@@ -89,23 +113,27 @@ export const App: React.FC = () => {
           </div>
         </div>
       </header>
+      )}
 
-      <div className="actionbar">
-        <div className="match-id">
-          <label htmlFor="matchId">Match ID</label>
-          <input
-            id="matchId"
-            value={matchId}
-            onChange={(e) => setMatchId(e.target.value)}
-            placeholder="match-001"
-          />
+      {setupDone && (
+        <div className="actionbar">
+          <div className="match-id">
+            <label htmlFor="matchId">Match ID</label>
+            <input
+              id="matchId"
+              value={matchId}
+              onChange={(e) => setMatchId(e.target.value)}
+              placeholder="match-001"
+            />
+          </div>
+          <button className="pill primary" onClick={async () => await handleSaveEvent()}>
+            Guardar evento
+          </button>
+          <div className="status">{saveStatus}</div>
         </div>
-        <button className="pill primary" onClick={async () => await handleSaveEvent()}>
-          Guardar evento
-        </button>
-        <div className="status">{saveStatus}</div>
-      </div>
+      )}
 
+      {setupDone && (
       <main className="layout">
         <section className="panel tags">
           <div className="grid red-grid">
@@ -179,13 +207,16 @@ export const App: React.FC = () => {
                 </div>
               ))}
           </div>
+
+          <TeamChips teams={teams} active={teamRef} onSelect={setTeamRef} />
         </section>
 
         <section className="panel right">
-          <PlayersGrid />
+          <PlayersGrid starters={starters} />
           <PitchZones zone={zone} onSelect={setZone} />
         </section>
       </main>
+      )}
     </div>
   );
 };
@@ -199,16 +230,178 @@ const formatTime = (ms: number) => {
   return `${mm}:${ss}`;
 };
 
+interface SetupScreenProps {
+  onComplete: (meta: {
+    matchId: string;
+    home: string;
+    away: string;
+    side: "home" | "away";
+    starters: string[];
+    fieldName?: string;
+    category?: string;
+    notes?: string;
+  }) => void;
+}
 
-const PlayersGrid: React.FC = () => {
-  const players = ["1", "2", "4", "5", "3", "8", "10", "6", "11", "9", "7"];
+const SetupScreen: React.FC<SetupScreenProps> = ({ onComplete }) => {
+  const [matchId, setMatchId] = useState("match-001");
+  const [home, setHome] = useState("Local");
+  const [away, setAway] = useState("Visitante");
+  const [side, setSide] = useState<"home" | "away">("home");
+  const [startersInput, setStartersInput] = useState("1,2,3,4,5,6,7,8,9,10,11");
+  const [fieldName, setFieldName] = useState("");
+  const [category, setCategory] = useState("");
+  const [notes, setNotes] = useState("");
+  const [status, setStatus] = useState("");
+
+  const parseStarters = () =>
+    startersInput
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+  const handleSave = async () => {
+    if (!matchId.trim()) {
+      setStatus("Falta matchId");
+      return;
+    }
+    setStatus("Guardando...");
+    try {
+      await saveMatchMeta({
+        matchId: matchId.trim(),
+        createdAt: new Date().toISOString(),
+        teams: { home: home.trim(), away: away.trim() },
+        configVersion: 1,
+        side,
+        starters: parseStarters(),
+        fieldName: fieldName.trim() || undefined,
+        category: category.trim() || undefined,
+        notes: notes.trim() || undefined,
+      });
+      setStatus("Guardado");
+      onComplete({
+        matchId: matchId.trim(),
+        home: home.trim(),
+        away: away.trim(),
+        side,
+        starters: parseStarters(),
+        fieldName: fieldName.trim() || undefined,
+        category: category.trim() || undefined,
+        notes: notes.trim() || undefined,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error inesperado";
+      setStatus(`Error: ${msg}`);
+    }
+  };
+
+  return (
+    <div className="setup-screen">
+      <div className="setup-card">
+        <h2>Configurar partido</h2>
+        <div className="form-grid">
+          <label>
+            Match ID
+            <input value={matchId} onChange={(e) => setMatchId(e.target.value)} />
+          </label>
+          <label>
+            Equipo local
+            <input value={home} onChange={(e) => setHome(e.target.value)} />
+          </label>
+          <label>
+            Equipo visitante
+            <input value={away} onChange={(e) => setAway(e.target.value)} />
+          </label>
+          <label>
+            Tu lado
+            <div className="radio-row">
+              <label>
+                <input
+                  type="radio"
+                  name="side"
+                  value="home"
+                  checked={side === "home"}
+                  onChange={() => setSide("home")}
+                />
+                Local
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="side"
+                  value="away"
+                  checked={side === "away"}
+                  onChange={() => setSide("away")}
+                />
+                Visitante
+              </label>
+            </div>
+          </label>
+          <label>
+            Números titulares (coma)
+            <input
+              value={startersInput}
+              onChange={(e) => setStartersInput(e.target.value)}
+              placeholder="1,2,3,4,5,6,7,8,9,10,11"
+            />
+          </label>
+          <label>
+            Campo
+            <input value={fieldName} onChange={(e) => setFieldName(e.target.value)} />
+          </label>
+          <label>
+            Categoría
+            <input value={category} onChange={(e) => setCategory(e.target.value)} />
+          </label>
+          <label className="span-2">
+            Notas
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
+          </label>
+        </div>
+        <div className="setup-actions">
+          <button className="pill primary" onClick={handleSave}>
+            Guardar y empezar
+          </button>
+          <span className="status">{status}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+const TeamChips: React.FC<{
+  teams: { home: string; away: string };
+  active: "home" | "away";
+  onSelect: (t: "home" | "away") => void;
+}> = ({ teams, active, onSelect }) => (
+  <div className="team-chips">
+    <button
+      className={`team-chip ${active === "home" ? "active" : ""}`}
+      onClick={() => onSelect("home")}
+    >
+      {teams.home}
+    </button>
+    <button
+      className={`team-chip ${active === "away" ? "active" : ""}`}
+      onClick={() => onSelect("away")}
+    >
+      {teams.away}
+    </button>
+  </div>
+);
+
+const PlayersGrid: React.FC<{ starters: string[] }> = ({ starters }) => {
+  const list = starters.length ? starters : ["1", "2", "4", "5", "3", "8", "10", "6", "11", "9", "7"];
+  const keeper = list[0];
+  const fieldPlayers = list.slice(1);
   return (
     <div className="players-card">
       <div className="jersey keeper">
-        <span className="jersey-number">1</span>
+        <span className="jersey-number">{keeper}</span>
       </div>
       <div className="players-grid">
-        {players.slice(1).map((num) => (
+        {fieldPlayers.map((num) => (
           <div key={num} className="jersey">
             <span className="dot red-dot" />
             <span className="jersey-number">{num}</span>
