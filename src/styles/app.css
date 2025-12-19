@@ -373,8 +373,8 @@ body, #root {
 
 .zone-overlay {
   position: absolute;
-  left: 0;
-  width: 100%;
+  top: 0;
+  height: 100%;
   border: none;
   background: rgba(255, 255, 255, 0.04);
   color: #f0f0f0;
@@ -396,16 +396,16 @@ body, #root {
 }
 
 .zone-overlay.top {
-  top: 0;
-  height: 33.4%;
+  right: 0;
+  width: 33.3%;
 }
 .zone-overlay.middle {
-  top: 33.3%;
-  height: 33.4%;
+  left: 33.3%;
+  width: 33.4%;
 }
 .zone-overlay.bottom {
-  bottom: 0;
-  height: 33.3%;
+  left: 0;
+  width: 33.4%;
 }
 
 @media (max-width: 1100px) {
