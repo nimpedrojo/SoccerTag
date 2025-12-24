@@ -21,6 +21,12 @@ Aplicación web tablet-first para etiquetado de acciones de fútbol en tiempo re
    npm run dev
    ```
    Abre el enlace que muestra Vite (por defecto http://localhost:5173).
+3. Backend de export (Fastify):
+   ```bash
+   # crea .env.local (frontend) y .env (o .env.server) para backend; ver ejemplos abajo
+   npm run dev:server
+   ```
+   Escucha en http://localhost:3000/export con CORS abierto.
 
 ### Modo depuración (local)
 - Frontend (Vite/React):
@@ -31,6 +37,8 @@ Aplicación web tablet-first para etiquetado de acciones de fútbol en tiempo re
   - Build y arranque compilado: `npm run build:server` (compila a `server/dist`) y luego `npm run start:server`.
   - Usa `DEBUG=fastify* npm run dev:server` para más trazas.
   - Variables de entorno necesarias:
+    - `PORT` (opcional, por defecto 3000)
+    - `HOST` (opcional, por defecto 0.0.0.0)
     - `GSHEET_ID`
     - `GSHEET_CLIENT_EMAIL`
     - `GSHEET_PRIVATE_KEY` (con saltos de línea escapados `\n` o en bloque multilinea)
@@ -62,6 +70,8 @@ Supone un VPS con Node 18+, firewalld/ufw permitiendo HTTP/HTTPS y dominio apunt
    - Forzar HTTPS (Let’s Encrypt).
 7. Variables de entorno en el VPS:
    ```
+   PORT=3000
+   HOST=0.0.0.0
    GSHEET_ID=...
    GSHEET_CLIENT_EMAIL=service-account@project.iam.gserviceaccount.com
    GSHEET_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
@@ -74,3 +84,9 @@ Supone un VPS con Node 18+, firewalld/ufw permitiendo HTTP/HTTPS y dominio apunt
 - UI, cronómetro, selecciones, captura y persistencia local listos.
 - Export a JSON y ejemplo de backend a Google Sheets incluidos.
 - Cola de reintentos offline para export: documentada en `docs/next-steps.md` (fase futura).
+- Nota: el proyecto usa Service Account para Sheets; no se requiere OAuth de usuario ni refresh token (se eliminó el script de refresh).
+
+## Entornos / .env
+- Frontend: define `VITE_EXPORT_ENDPOINT` (ej. `http://localhost:3000/export`) en `.env.local`.
+- Backend: usa `.env` (o variables en el entorno) con `GSHEET_ID`, `GSHEET_CLIENT_EMAIL`, `GSHEET_PRIVATE_KEY`, `PORT`, `HOST`.
+- Consulta `.env.example` para ver claves y formato del `PRIVATE_KEY`.

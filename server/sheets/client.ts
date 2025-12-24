@@ -1,32 +1,15 @@
-import { google } from "googleapis";
-
 interface SheetsClientOptions {
-  spreadsheetId: string;
-  credentials: {
-    client_email: string;
-    private_key: string;
-  };
+  scriptUrl: string;
 }
 
-const SCOPES = ["https://www.googleapis.com/auth/spreadsheets"];
-
 class SheetsClient {
-  private sheets;
-  private spreadsheetId: string;
+  private scriptUrl: string;
 
   constructor(opts: SheetsClientOptions) {
-    const auth = new google.auth.JWT(
-      opts.credentials.client_email,
-      undefined,
-      opts.credentials.private_key,
-      SCOPES
-    );
-    this.sheets = google.sheets({ version: "v4", auth });
-    this.spreadsheetId = opts.spreadsheetId;
+    this.scriptUrl = opts.scriptUrl;
   }
 
   async appendEvents(meta: any, events: any[]) {
-    // Simple append, one row per event. Customize as needed.
     const rows = events.map((evt) => [
       meta.matchId,
       meta.teams?.home ?? "",
@@ -38,22 +21,31 @@ class SheetsClient {
       evt.notes ?? "",
     ]);
 
-    await this.sheets.spreadsheets.values.append({
-      spreadsheetId: this.spreadsheetId,
-      range: "Events!A1",
-      valueInputOption: "RAW",
-      requestBody: {
-        values: rows,
+    console.log("Sending to script URL:", this.scriptUrl);
+    console.log("Data:", JSON.stringify({ rows }));
+
+    const response = await fetch(this.scriptUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify({ rows }),
     });
+
+    console.log("Response status:", response.status);
+    console.log("Response text:", await response.text());
+
+    if (!response.ok) {
+      throw new Error(`Failed to append events: ${response.statusText}`);
+    }
+
+    return await response.json();
   }
 }
 
 // Factory; in real app, load from env/config
+const scriptUrl = process.env.GSHEET_SCRIPT_URL || "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec";
+console.log("Script URL:", scriptUrl);
 export const sheetsClient = new SheetsClient({
-  spreadsheetId: process.env.GSHEET_ID || "YOUR_SPREADSHEET_ID",
-  credentials: {
-    client_email: process.env.GSHEET_CLIENT_EMAIL || "service-account@project.iam.gserviceaccount.com",
-    private_key: (process.env.GSHEET_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
-  },
+  scriptUrl,
 });

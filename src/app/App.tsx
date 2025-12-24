@@ -5,6 +5,7 @@ import { categoryConfig, CategoryKey } from "../config/categories";
 import { useSelections } from "../features/selections/useSelections";
 import { useMatchTimer } from "../features/timer/useMatchTimer";
 import { createMatchEvent, persistMatchEvent } from "../services/events";
+import { buildExportBundle, postToBackend, downloadJson } from "../services/export";
 import { saveMatchMeta } from "../db";
 
 const possessionStates = ["Posesión propia", "No posesión (S)", "Posesión rival"];
@@ -21,6 +22,7 @@ export const App: React.FC = () => {
   const { selections, toggle, resetCategory, toObject } = useSelections();
   const [matchId, setMatchId] = useState("match-001");
   const [saveStatus, setSaveStatus] = useState<string>("");
+  const [exportStatus, setExportStatus] = useState<string>("");
   const [zone, setZone] = useState<"bajo" | "medio" | "alto" | null>(null);
   const [setupDone, setSetupDone] = useState(false);
   const [teams, setTeams] = useState<{ home: string; away: string }>({
@@ -30,8 +32,22 @@ export const App: React.FC = () => {
   const [side, setSide] = useState<"home" | "away">("home");
   const [starters, setStarters] = useState<string[]>([]);
   const [teamRef, setTeamRef] = useState<"home" | "away">("home");
+  const [showSubModal, setShowSubModal] = useState(false);
+  const [playerIn, setPlayerIn] = useState("");
+  const [playerOut, setPlayerOut] = useState("");
 
-  const handleSaveEvent = async () => {
+  const applySubstitution = (outNum: string, inNum: string) => {
+    setStarters((prev) => {
+      if (!prev.length) return prev;
+      const idx = prev.indexOf(outNum);
+      if (idx === -1) return prev;
+      const next = [...prev];
+      next[idx] = inNum;
+      return next;
+    });
+  };
+
+  const handleSaveEvent = async (opts?: { extraSelections?: Record<string, string[]>; note?: string }) => {
     if (!matchId.trim()) {
       setSaveStatus("Falta matchId");
       return;
@@ -46,7 +62,9 @@ export const App: React.FC = () => {
           ...toObject(),
           zonaCampo: zone ? [zone] : [],
           equipo: [teams[teamRef] ?? teamRef],
+          ...(opts?.extraSelections ?? {}),
         },
+        notes: opts?.note,
       });
       await persistMatchEvent(event);
       setSaveStatus("Evento guardado");
@@ -55,6 +73,28 @@ export const App: React.FC = () => {
       setSaveStatus(`Error: ${msg}`);
     }
     setTimeout(() => setSaveStatus(""), 2000);
+  };
+
+  const handleExport = async () => {
+    if (running) {
+      window.alert("Para exportar, primero pausa el cronómetro.");
+      return;
+    }
+    if (!matchId.trim()) {
+      setExportStatus("Falta matchId");
+      return;
+    }
+    setExportStatus("Exportando...");
+    try {
+      const bundle = await buildExportBundle(matchId.trim());
+      const endpoint = import.meta.env.VITE_EXPORT_ENDPOINT || "/export";
+      await postToBackend(endpoint, bundle);
+      setExportStatus("Exportado a Google Sheets");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error inesperado";
+      setExportStatus(`Error: ${msg}`);
+    }
+    setTimeout(() => setExportStatus(""), 3000);
   };
 
   return (
@@ -129,7 +169,15 @@ export const App: React.FC = () => {
           <button className="pill primary" onClick={async () => await handleSaveEvent()}>
             Guardar evento
           </button>
-          <div className="status">{saveStatus}</div>
+          <button className="pill subtle" onClick={handleExport}>
+            Exportar partido
+          </button>
+          <button className="pill primary" onClick={() => setShowSubModal(true)}>
+            Cambio
+          </button>
+          <div className="status">
+            {saveStatus || exportStatus}
+          </div>
         </div>
       )}
 
@@ -216,6 +264,37 @@ export const App: React.FC = () => {
           <PitchZones zone={zone} onSelect={setZone} />
         </section>
       </main>
+      )}
+
+      {showSubModal && (
+        <SubModal
+          starters={starters}
+          playerIn={playerIn}
+          playerOut={playerOut}
+          onChangeIn={setPlayerIn}
+          onChangeOut={setPlayerOut}
+          onClose={() => {
+            setShowSubModal(false);
+            setPlayerIn("");
+            setPlayerOut("");
+          }}
+          onConfirm={async () => {
+            if (!playerIn || !playerOut) {
+              window.alert("Selecciona jugador que entra y que sale.");
+              return;
+            }
+            applySubstitution(playerOut, playerIn);
+            await handleSaveEvent({
+              extraSelections: {
+                cambio: [`entra:${playerIn}`, `sale:${playerOut}`],
+              },
+              note: "Cambio de jugador",
+            });
+            setShowSubModal(false);
+            setPlayerIn("");
+            setPlayerOut("");
+          }}
+        />
       )}
     </div>
   );
@@ -443,6 +522,69 @@ const PitchZones: React.FC<PitchZonesProps> = ({ zone, onSelect }) => {
         >
           Bloque bajo
         </button>
+      </div>
+    </div>
+  );
+};
+
+interface SubModalProps {
+  starters: string[];
+  playerIn: string;
+  playerOut: string;
+  onChangeIn: (v: string) => void;
+  onChangeOut: (v: string) => void;
+  onClose: () => void;
+  onConfirm: () => void;
+}
+
+const SubModal: React.FC<SubModalProps> = ({
+  starters,
+  playerIn,
+  playerOut,
+  onChangeIn,
+  onChangeOut,
+  onClose,
+  onConfirm,
+}) => {
+  const options = starters.length ? starters : ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"];
+  return (
+    <div className="modal-backdrop">
+      <div className="modal-card">
+        <h3>Cambio de jugadores</h3>
+        <div className="sub-grid">
+          <div className="sub-block">
+            <div className="arrow in">→</div>
+            <label>Entra</label>
+            <select value={playerIn} onChange={(e) => onChangeIn(e.target.value)}>
+              <option value="">Seleccionar</option>
+              {options.map((p) => (
+                <option key={`in-${p}`} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="sub-block">
+            <div className="arrow out">←</div>
+            <label>Sale</label>
+            <select value={playerOut} onChange={(e) => onChangeOut(e.target.value)}>
+              <option value="">Seleccionar</option>
+              {options.map((p) => (
+                <option key={`out-${p}`} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="modal-actions">
+          <button className="pill subtle" onClick={onClose}>
+            Cancelar
+          </button>
+          <button className="pill primary" onClick={onConfirm}>
+            Confirmar
+          </button>
+        </div>
       </div>
     </div>
   );
