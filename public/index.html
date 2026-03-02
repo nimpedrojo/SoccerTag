@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SoccerTag (Node)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="screen">
+      <header class="topbar">
+        <div class="brand">SoccerTag Node</div>
+        <div class="controls">
+          <div class="match-setup" id="match-setup">
+            <input id="home-team" class="team-input" placeholder="Equipo local" />
+            <input id="away-team" class="team-input" placeholder="Equipo visitante" />
+            <button id="start-match" class="pill primary">Iniciar partido</button>
+          </div>
+          <div class="match-meta hidden" id="match-meta">
+            <span id="teams-label"></span>
+            <button id="end-match" class="pill">Finalizar partido</button>
+          </div>
+          <div class="timer">
+            <span id="timer-display" class="timer-display">0:00</span>
+            <button id="timer-toggle" class="pill">Iniciar</button>
+            <button id="timer-reset" class="pill">Reset</button>
+          </div>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="panel tags">
+          <div class="grid">
+            <button class="tag-button" data-category="tiros" data-option="Gol">
+              Gol
+            </button>
+            <button class="tag-button" data-category="tiros" data-option="Tiro fuera">
+              Tiro fuera
+            </button>
+            <button class="tag-button" data-category="defensa" data-option="Bloque alto">
+              Bloque alto
+            </button>
+            <button class="tag-button" data-category="defensa" data-option="Bloque medio">
+              Bloque medio
+            </button>
+          </div>
+          <div class="tag-actions">
+            <button id="register-event" class="pill primary">Registrar evento</button>
+            <button id="undo-event" class="pill">Undo último</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Export</h2>
+          <input id="export-match-id" class="match-id-input" placeholder="matchId a exportar" />
+          <button id="export-json" class="pill">Export JSON</button>
+          <pre id="export-output" class="export-output"></pre>
+        </section>
+      </main>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
+

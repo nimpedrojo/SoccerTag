@@ -1,48 +1,53 @@
-# Arquitectura de SoccerTag (MVP)
+# Arquitectura de SoccerTag (Node + MySQL)
 
 ## Objetivo
-Aplicación tablet-first para etiquetar acciones de fútbol en tiempo real, offline-first, con exportación posterior a JSON y Google Sheets.
+Aplicación tablet-first para etiquetar acciones de fútbol en tiempo real, con persistencia en MySQL y exportación posterior a JSON (y Google Sheets vía backend).
 
 ## Componentes
-- **Frontend (React + Vite + TS + PWA)**: UI de etiquetado con botones grandes; cronómetro; selección múltiple; capa de servicios para eventos.
-- **Persistencia local (IndexedDB vía `idb`)**: Guarda `MatchMeta` y cada `MatchEvent` de forma inmediata (append-only) y permite undo del último evento.
-- **Sin backend en vivo**: El etiquetado funciona 100% local; la red solo se usa en export.
+- **Frontend estático (HTML + CSS + JS)**:
+  - Servido directamente desde `public/` por Fastify.
+  - UI de etiquetado con botones grandes y cronómetro en el navegador.
+- **Backend Node/Fastify**:
+  - Servidor HTTP (`server/index.ts`) que sirve los estáticos y expone APIs REST.
+  - Migraciones mínimas para crear tablas `matches` y `events` en MySQL.
+- **Persistencia en MySQL**:
+  - `matches`: información básica del partido (`match_id`, equipos, fecha).
+  - `events`: cada acción etiquetada con tiempo de partido, periodo y selecciones.
 - **Export**:
-  - JSON consolidado `{ meta, events[] }`.
-  - Opción A: Endpoint Node/Fastify (Service Account) para escribir en Google Sheets.
-  - Opción B: Google Apps Script (web app) para evitar backend propio.
-- **PWA / sincronización**: Service worker para cache de assets; cola/reintento de export cuando vuelve la conexión.
+  - JSON consolidado `{ meta, events[] }` vía `GET /api/matches/:id/export`.
+  - Ruta `/export` usando cliente de Google Sheets (`server/sheets/client.ts`) para escritura remota.
 
 ## Flujo de datos
-1. Se crea `MatchMeta` al iniciar partido y se guarda en IndexedDB.
-2. Durante el juego: cada acción produce `MatchEvent` con `tMatchMs` y `tWall`; se persiste inmediatamente.
-3. “Undo last” elimina el último evento del match en la base local (no toca la metadata).
-4. Al terminar: se lee `{ meta, events }` → se genera JSON descargable y/o se POSTea al backend/Apps Script. Si no hay red, se encola y reintenta al volver online.
+1. El frontend llama a `POST /api/matches` al iniciar un partido; el backend genera `matchId` y crea la fila en `matches`.
+2. Durante el juego, cada vez que se etiqueta una acción:
+   - El navegador calcula `tMatchMs` con el cronómetro.
+   - Se hace `POST /api/events` con `matchId`, `period`, `tMatchMs` y las selecciones.
+   - El backend inserta una fila en `events`.
+3. “Undo last” llama a `DELETE /api/events/last?matchId=...`, que borra el último evento del partido usando transacción.
+4. Al terminar: se puede leer `{ meta, events }` mediante `GET /api/matches/:id/export` y descargarlo o enviarlo a Sheets.
 
-## Modelos (obligatorio)
+## Modelo de datos (conceptual)
 ```ts
-interface MatchEvent {
-  eventId: string;            // UUID
-  matchId: string;
-  period: "1T" | "2T";
-  tMatchMs: number;           // tiempo de partido en ms
-  tWall: string;              // ISO timestamp real
-  selections: {
-    [category: string]: string[];
-  };
-  notes?: string;
-}
-
 interface MatchMeta {
   matchId: string;
   createdAt: string;
   teams: { home: string; away: string };
   configVersion: number;
 }
+
+interface MatchEvent {
+  matchId: string;
+  period: "1T" | "2T";
+  tMatchMs: number;
+  tWall: string;
+  selections: {
+    [category: string]: string[];
+  };
+  notes?: string;
+}
 ```
 
 ## Principios clave
 - **Tablet-first**: layout fijo, botones grandes, mínimo scroll.
-- **Offline-first**: ningún evento depende de la red; todo se guarda local.
-- **Event-based**: cada acción es un evento independiente; se evita estado global complejo.
-- **Simplicidad evolutiva**: modular, sin sobre-ingeniería en el MVP.
+- **Simplicidad**: frontend estático sin bundler; solo Node + MySQL.
+- **Event-based**: cada acción es un evento independiente, fácilmente exportable y analizable.
