@@ -23,6 +23,10 @@ body {
   align-items: center;
   gap: 1rem;
 }
+.user-info {
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
 .layout {
   display: flex;
   flex: 1;
@@ -33,6 +37,159 @@ body {
   flex: 1;
   border: 1px solid #ddd;
   padding: 1rem;
+}
+
+/* Grid de opciones del menú (cards) */
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.menu-card {
+  border-radius: 12px;
+  padding: 1rem;
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.players-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.player-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 2fr auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.player-row input {
+  width: 100%;
+}
+
+.team-tag-toggle .active {
+  color: #fff;
+}
+
+.team-tag-toggle {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.team-tag-toggle button {
+  opacity: 0.4; /* por defecto difuminados */
+}
+
+#btn-event-own,
+#btn-event-rival {
+  border-radius: 12px;
+  padding: 0.6rem 1rem;
+  min-width: 120px;
+  border: none;
+  color: #fff;
+}
+
+#btn-event-own {
+  background-color: #c62828; /* rojo */
+}
+
+#btn-event-rival {
+  background-color: #1565c0; /* azul */
+}
+
+.team-tag-toggle .active {
+  opacity: 1; /* el seleccionado se "enciende" */
+}
+
+/* Modal de detalle de evento */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  z-index: 1000;
+  padding-top: 8vh;
+}
+
+.modal-content {
+  background: #fff;
+  border-radius: 16px;
+  padding: 1.5rem;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.field-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  width: 100%;
+  max-width: 480px;
+  aspect-ratio: 3 / 2;
+  /* Fondo de campo con imagen difuminada */
+  background:
+    linear-gradient(
+      135deg,
+      rgba(0, 0, 0, 0.45),
+      rgba(0, 0, 0, 0.15)
+    ),
+    url("/soccer-field-2-svgrepo-com.svg") center/cover no-repeat;
+  border-radius: 16px;
+  padding: 6px;
+  margin: 0 auto;
+  gap: 4px;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.4);
+  filter: blur(0.6px);
+}
+
+.field-cell {
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(0, 0, 0, 0.05);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+}
+
+.field-cell.active {
+  background: rgba(13, 110, 253, 0.85);
+  color: #fff;
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 1px #fff;
+}
+
+/* Login panel centrado como tarjeta en medio de la pantalla */
+.login-panel {
+  max-width: 33%;
+  min-width: 320px;
+  margin: 8vh auto auto;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  background: #ffffff;
+}
+
+@media (max-width: 992px) {
+  .login-panel {
+    max-width: 90%;
+  }
+}
+
+.login-logo {
+  max-width: 96px;
+  height: auto;
 }
 .grid {
   display: grid;
@@ -66,6 +223,13 @@ body {
   display: flex;
   gap: 0.5rem;
 }
+.match-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
 .export-output {
   margin-top: 0.5rem;
   max-height: 200px;
@@ -74,7 +238,21 @@ body {
   padding: 0.5rem;
   font-size: 0.8rem;
 }
+
+.table {
+  font-size: 0.85rem;
+}
+
+.table code {
+  font-size: 0.8rem;
+}
 .hidden {
   display: none;
 }
-
+.error {
+  color: #b00020;
+  font-size: 0.85rem;
+}
+.info {
+  font-size: 0.85rem;
+}

@@ -4,62 +4,307 @@
     <meta charset="UTF-8" />
     <title>SoccerTag (Node)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+      crossorigin="anonymous"
+    />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div class="screen">
-      <header class="topbar">
-        <div class="brand">SoccerTag Node</div>
-        <div class="controls">
-          <div class="match-setup" id="match-setup">
-            <input id="home-team" class="team-input" placeholder="Equipo local" />
-            <input id="away-team" class="team-input" placeholder="Equipo visitante" />
-            <button id="start-match" class="pill primary">Iniciar partido</button>
-          </div>
-          <div class="match-meta hidden" id="match-meta">
-            <span id="teams-label"></span>
-            <button id="end-match" class="pill">Finalizar partido</button>
-          </div>
-          <div class="timer">
-            <span id="timer-display" class="timer-display">0:00</span>
-            <button id="timer-toggle" class="pill">Iniciar</button>
-            <button id="timer-reset" class="pill">Reset</button>
-          </div>
-        </div>
+    <div class="screen container-fluid">
+      <header class="topbar navbar navbar-dark bg-dark mb-3">
+        <button
+          id="app-brand"
+          class="brand navbar-brand btn btn-link text-light text-decoration-none px-0"
+          type="button"
+        >
+          SoccerTag Node
+        </button>
+        <button
+          id="btn-logout"
+          class="btn btn-outline-light ms-auto d-none"
+          type="button"
+        >
+          Cerrar sesión
+        </button>
       </header>
 
-      <main class="layout">
-        <section class="panel tags">
+      <main class="layout row">
+        <!-- Pantalla de usuario / menú principal -->
+        <section class="panel login-panel" id="user-screen">
+          <div class="text-center mb-3">
+            <img src="/logo.png" alt="Logo SoccerTag" class="login-logo mb-2" />
+            <h2>Acceso</h2>
+          </div>
+          <div id="auth-box" class="mb-3">
+            <input id="username" class="team-input form-control mb-2" placeholder="Usuario" />
+            <input
+              id="password"
+              class="team-input form-control mb-2"
+              type="password"
+              placeholder="Password"
+            />
+            <div class="tag-actions d-flex gap-2">
+              <button id="btn-login" class="pill primary btn btn-primary">Entrar</button>
+              <button id="btn-register" class="pill btn btn-outline-secondary">Registrarse</button>
+            </div>
+            <p id="auth-error" class="error hidden"></p>
+          </div>
+
+          <div id="main-menu" class="hidden">
+            <p id="welcome-label" class="mb-3"></p>
+            <div class="menu-grid">
+              <div class="menu-card">
+                <h5>Empezar a grabar partido</h5>
+                <p class="mb-2">
+                  Crea un nuevo partido y comienza a etiquetar acciones en tiempo real.
+                </p>
+                <button id="btn-start-record" class="pill btn btn-success w-100">
+                  Empezar partido
+                </button>
+              </div>
+              <div class="menu-card">
+                <h5>Configurar equipo propio</h5>
+                <p class="mb-2">
+                  Define y guarda el nombre de tu equipo y su plantilla.
+                </p>
+                <button
+                  id="btn-config-team"
+                  class="pill primary btn btn-outline-primary w-100 mb-2"
+                >
+                  Configurar equipo
+                </button>
+              </div>
+              <div class="menu-card">
+                <h5>Ver partidos guardados</h5>
+                <p class="mb-2">
+                  Consulta la lista de partidos almacenados, sus eventos y bórralos si ya no los necesitas.
+                </p>
+                <button id="btn-view-matches" class="pill btn btn-outline-secondary w-100">
+                  Ver partidos
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Pantalla de configuración de equipo -->
+        <section class="panel col-12 col-lg-8 hidden" id="team-screen">
+          <h2>Configuración de equipo</h2>
+          <p class="mb-3">
+            Define el nombre de tu equipo y la lista de jugadores (dorsal y posición).
+          </p>
+
+          <div class="mb-3">
+            <label for="team-name-input" class="form-label">Nombre del equipo</label>
+            <input
+              id="team-name-input"
+              class="form-control"
+              placeholder="Nombre de tu equipo"
+            />
+          </div>
+
+          <div class="mb-2 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Jugadores</h5>
+            <button id="btn-add-player" class="btn btn-sm btn-outline-secondary">
+              Añadir jugador
+            </button>
+          </div>
+
+          <div id="players-container" class="players-container">
+            <!-- filas de jugadores generadas por JS -->
+          </div>
+
+          <div class="mt-3 d-flex gap-2">
+            <button id="btn-save-team-full" class="btn btn-primary">
+              Guardar equipo
+            </button>
+            <button id="btn-team-back" class="btn btn-outline-secondary">
+              Volver al menú
+            </button>
+            <p id="team-message" class="info mb-0 ms-2"></p>
+          </div>
+        </section>
+
+        <!-- Pantalla de partido / tagging -->
+        <section class="panel tags col-12 col-lg-8 hidden" id="match-screen">
+          <div class="match-header">
+            <div class="match-setup" id="match-setup">
+              <input
+                id="home-team"
+                class="team-input"
+                placeholder="Equipo propio"
+                readonly
+              />
+              <input
+                id="away-team"
+                class="team-input"
+                placeholder="Equipo rival"
+              />
+              <button id="start-match" class="pill primary">Iniciar partido</button>
+            </div>
+            <div class="match-meta hidden" id="match-meta">
+              <span id="teams-label"></span>
+              <button id="end-match" class="pill">Finalizar partido</button>
+            </div>
+            <div class="timer">
+              <span id="timer-display" class="timer-display">0:00</span>
+              <button id="timer-reset" class="pill">Reset</button>
+            </div>
+          </div>
+
+          <div class="team-tag-toggle mb-2">
+            <button
+              id="btn-event-own"
+              class="pill btn btn-sm btn-outline-primary me-1 active"
+              type="button"
+            >
+              Equipo propio
+            </button>
+            <button
+              id="btn-event-rival"
+              class="pill btn btn-sm btn-outline-secondary"
+              type="button"
+            >
+              Equipo rival
+            </button>
+          </div>
+
           <div class="grid">
-            <button class="tag-button" data-category="tiros" data-option="Gol">
+            <button class="tag-button" data-category="evento" data-option="Gol">
               Gol
             </button>
-            <button class="tag-button" data-category="tiros" data-option="Tiro fuera">
+            <button class="tag-button" data-category="evento" data-option="Tiro fuera">
               Tiro fuera
             </button>
-            <button class="tag-button" data-category="defensa" data-option="Bloque alto">
-              Bloque alto
+            <button class="tag-button" data-category="evento" data-option="Tiro a puerta">
+              Tiro a puerta
             </button>
-            <button class="tag-button" data-category="defensa" data-option="Bloque medio">
-              Bloque medio
+            <button class="tag-button" data-category="evento" data-option="Falta">
+              Falta
+            </button>
+            <button class="tag-button" data-category="evento" data-option="Tarjeta amarilla">
+              Tarjeta amarilla
+            </button>
+            <button class="tag-button" data-category="evento" data-option="Tarjeta roja">
+              Tarjeta roja
+            </button>
+            <button class="tag-button" data-category="evento" data-option="Cambio">
+              Cambio
             </button>
           </div>
           <div class="tag-actions">
             <button id="register-event" class="pill primary">Registrar evento</button>
             <button id="undo-event" class="pill">Undo último</button>
           </div>
+
+          <section class="panel">
+            <h2>Export</h2>
+            <input
+              id="export-match-id"
+              class="match-id-input"
+              placeholder="matchId a exportar"
+            />
+            <button id="export-json" class="pill">Export JSON</button>
+            <pre id="export-output" class="export-output"></pre>
+          </section>
         </section>
 
-        <section class="panel">
-          <h2>Export</h2>
-          <input id="export-match-id" class="match-id-input" placeholder="matchId a exportar" />
-          <button id="export-json" class="pill">Export JSON</button>
-          <pre id="export-output" class="export-output"></pre>
+        <!-- Pantalla de listado de partidos -->
+        <section class="panel col-12 col-lg-8 hidden" id="matches-screen">
+          <h2>Partidos guardados</h2>
+          <p class="mb-3">
+            Selecciona un partido para ver sus eventos o eliminarlo.
+          </p>
+          <div class="table-responsive mb-3">
+            <table class="table table-sm table-striped align-middle">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Local</th>
+                  <th>Visitante</th>
+                  <th>matchId</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="matches-table-body">
+                <!-- filas generadas por JS -->
+              </tbody>
+            </table>
+          </div>
+
+          <div id="match-events-panel" class="hidden">
+            <h3 class="h5">Eventos del partido</h3>
+            <p id="match-events-title" class="mb-2"></p>
+            <div class="table-responsive">
+              <table class="table table-sm table-bordered align-middle">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Periodo</th>
+                    <th>Tiempo</th>
+                    <th>Evento</th>
+                    <th>Equipo</th>
+                    <th>Jugador</th>
+                    <th>Zona</th>
+                  </tr>
+                </thead>
+                <tbody id="match-events-body">
+                  <!-- eventos generados por JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
         </section>
+
+        <!-- Modal de detalle de evento -->
+        <div id="event-modal" class="modal-overlay hidden">
+          <div class="modal-content">
+            <h3 id="event-modal-title" class="mb-3">Detalle de evento</h3>
+
+            <div class="mb-3">
+              <label for="event-player-number" class="form-label">Dorsal jugador</label>
+              <input
+                id="event-player-number"
+                class="form-control"
+                placeholder="Número de camiseta"
+              />
+            </div>
+
+            <div class="mb-2">
+              <p class="mb-1">Zona del campo</p>
+              <div id="field-grid" class="field-grid">
+                <!-- celdas generadas en HTML -->
+                <button type="button" class="field-cell" data-zone="1">1</button>
+                <button type="button" class="field-cell" data-zone="2">2</button>
+                <button type="button" class="field-cell" data-zone="3">3</button>
+                <button type="button" class="field-cell" data-zone="4">4</button>
+                <button type="button" class="field-cell" data-zone="5">5</button>
+                <button type="button" class="field-cell" data-zone="6">6</button>
+                <button type="button" class="field-cell" data-zone="7">7</button>
+                <button type="button" class="field-cell" data-zone="8">8</button>
+                <button type="button" class="field-cell" data-zone="9">9</button>
+                <button type="button" class="field-cell" data-zone="10">10</button>
+                <button type="button" class="field-cell" data-zone="11">11</button>
+                <button type="button" class="field-cell" data-zone="12">12</button>
+              </div>
+            </div>
+
+            <div class="mt-3 d-flex justify-content-end gap-2">
+              <button id="event-modal-cancel" class="btn btn-outline-secondary" type="button">
+                Cancelar
+              </button>
+              <button id="event-modal-ok" class="btn btn-primary" type="button">
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
       </main>
     </div>
 
     <script src="/app.js"></script>
   </body>
 </html>
-

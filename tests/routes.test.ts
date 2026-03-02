@@ -10,7 +10,10 @@ describe("app routes", () => {
     await app.ready();
 
     const routes = app.printRoutes();
-    expect(routes).toContain("matches (POST)");
+    expect(routes).toContain("register (POST)");
+    expect(routes).toContain("login (POST)");
+    expect(routes).toContain("user/team (POST)");
+    expect(routes).toContain("matches (POST, GET, HEAD)");
     expect(routes).toContain("events (POST)");
   });
 });

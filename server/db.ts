@@ -22,6 +22,16 @@ export async function runMigrations() {
   const conn = await pool.getConnection();
   try {
     await conn.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        username VARCHAR(255) NOT NULL UNIQUE,
+        password VARCHAR(255) NOT NULL,
+        team_name VARCHAR(255) NULL,
+        created_at DATETIME NOT NULL
+      )
+    `);
+
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS matches (
         id INT AUTO_INCREMENT PRIMARY KEY,
         match_id VARCHAR(64) NOT NULL UNIQUE,
@@ -52,4 +62,3 @@ export async function runMigrations() {
 export function newMatchId() {
   return randomUUID();
 }
-

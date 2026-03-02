@@ -47,11 +47,22 @@ Al arrancar, el servidor ejecuta migraciones mínimas y crea las tablas si no ex
 1. Abre `http://localhost:3000/` (idealmente en una tablet en landscape).
 2. Introduce los nombres de equipos (local / visitante) y pulsa **Iniciar partido**.
 3. Usa el cronómetro (Iniciar / Pausar / Reset) mientras se juega el partido.
-4. Etiqueta acciones utilizando los botones del tablero (ejemplo: Gol, Tiro fuera, Bloque alto, etc.).
+4. Etiqueta acciones utilizando los botones del tablero.
 5. Cada vez que quieras registrar una acción, pulsa **Registrar evento** (se guarda una fila en `events` ligada al `matchId`).
 6. Si te equivocas, pulsa **Undo último** para eliminar el último evento del partido en MySQL.
 7. Al terminar el encuentro pulsa **Finalizar partido**; el `matchId` sigue disponible para export.
 8. En el panel de export, introduce un `matchId` y pulsa **Export JSON** para obtener `{ meta, events[] }` desde MySQL.
+
+### Tipos de eventos disponibles actualmente
+
+Los eventos que actualmente se pueden guardar (coinciden con los botones del tablero) son:
+- `Gol`
+- `Tiro fuera`
+- `Tiro a puerta`
+- `Falta`
+- `Tarjeta amarilla`
+- `Tarjeta roja`
+- `Cambio`
 
 ## Endpoints principales
 - `POST /api/matches`  
@@ -71,7 +82,7 @@ Al arrancar, el servidor ejecuta migraciones mínimas y crea las tablas si no ex
     "matchId": "...",
     "period": "1T",
     "tMatchMs": 123456,
-    "selections": { "tiros": ["Gol"], "defensa": ["Bloque alto"] },
+    "selections": { "evento": ["Gol"] },
     "notes": "opcional"
   }
   ```
