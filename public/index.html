@@ -82,7 +82,7 @@
                 <p class="mb-2">
                   Consulta la lista de partidos almacenados, sus eventos y bórralos si ya no los necesitas.
                 </p>
-                <button id="btn-view-matches" class="pill btn btn-outline-secondary w-100">
+                <button id="btn-view-matches" class="pill btn btn-warning w-100">
                   Ver partidos
                 </button>
               </div>
@@ -143,11 +143,26 @@
                 class="team-input"
                 placeholder="Equipo rival"
               />
-              <button id="start-match" class="pill primary">Iniciar partido</button>
+              <select id="plays-as-select" class="form-select form-select-sm w-auto d-inline-block ms-2">
+                <option value="home">Jugamos como local</option>
+                <option value="away">Jugamos como visitante</option>
+              </select>
             </div>
             <div class="match-meta hidden" id="match-meta">
               <span id="teams-label"></span>
-              <button id="end-match" class="pill">Finalizar partido</button>
+              <div class="d-flex align-items-center gap-2">
+                <select
+                  id="period-select"
+                  class="form-select form-select-sm w-auto"
+                >
+                  <option value="1T">1T</option>
+                  <option value="2T">2T</option>
+                </select>
+                <button id="btn-period" class="pill btn btn-success">
+                  Iniciar periodo
+                </button>
+                <button id="end-match" class="pill">Finalizar partido</button>
+              </div>
             </div>
             <div class="timer">
               <span id="timer-display" class="timer-display">0:00</span>
@@ -196,20 +211,8 @@
             </button>
           </div>
           <div class="tag-actions">
-            <button id="register-event" class="pill primary">Registrar evento</button>
             <button id="undo-event" class="pill">Undo último</button>
           </div>
-
-          <section class="panel">
-            <h2>Export</h2>
-            <input
-              id="export-match-id"
-              class="match-id-input"
-              placeholder="matchId a exportar"
-            />
-            <button id="export-json" class="pill">Export JSON</button>
-            <pre id="export-output" class="export-output"></pre>
-          </section>
         </section>
 
         <!-- Pantalla de listado de partidos -->
@@ -264,31 +267,48 @@
           <div class="modal-content">
             <h3 id="event-modal-title" class="mb-3">Detalle de evento</h3>
 
-            <div class="mb-3">
-              <label for="event-player-number" class="form-label">Dorsal jugador</label>
-              <input
-                id="event-player-number"
-                class="form-control"
-                placeholder="Número de camiseta"
-              />
+            <div id="event-modal-body-regular">
+              <div class="mb-3">
+                <label for="event-player-number" class="form-label">Dorsal jugador</label>
+                <input
+                  id="event-player-number"
+                  class="form-control"
+                  placeholder="Número de camiseta"
+                />
+                <div id="event-player-number-grid" class="number-grid mt-2"></div>
+              </div>
+
+              <div class="mb-2">
+                <p class="mb-1">Zona del campo</p>
+                <div id="field-grid" class="field-grid">
+                  <!-- celdas generadas en HTML -->
+                  <button type="button" class="field-cell" data-zone="1">1</button>
+                  <button type="button" class="field-cell" data-zone="2">2</button>
+                  <button type="button" class="field-cell" data-zone="3">3</button>
+                  <button type="button" class="field-cell" data-zone="4">4</button>
+                  <button type="button" class="field-cell" data-zone="5">5</button>
+                  <button type="button" class="field-cell" data-zone="6">6</button>
+                  <button type="button" class="field-cell" data-zone="7">7</button>
+                  <button type="button" class="field-cell" data-zone="8">8</button>
+                  <button type="button" class="field-cell" data-zone="9">9</button>
+                  <button type="button" class="field-cell" data-zone="10">10</button>
+                  <button type="button" class="field-cell" data-zone="11">11</button>
+                  <button type="button" class="field-cell" data-zone="12">12</button>
+                </div>
+              </div>
             </div>
 
-            <div class="mb-2">
-              <p class="mb-1">Zona del campo</p>
-              <div id="field-grid" class="field-grid">
-                <!-- celdas generadas en HTML -->
-                <button type="button" class="field-cell" data-zone="1">1</button>
-                <button type="button" class="field-cell" data-zone="2">2</button>
-                <button type="button" class="field-cell" data-zone="3">3</button>
-                <button type="button" class="field-cell" data-zone="4">4</button>
-                <button type="button" class="field-cell" data-zone="5">5</button>
-                <button type="button" class="field-cell" data-zone="6">6</button>
-                <button type="button" class="field-cell" data-zone="7">7</button>
-                <button type="button" class="field-cell" data-zone="8">8</button>
-                <button type="button" class="field-cell" data-zone="9">9</button>
-                <button type="button" class="field-cell" data-zone="10">10</button>
-                <button type="button" class="field-cell" data-zone="11">11</button>
-                <button type="button" class="field-cell" data-zone="12">12</button>
+            <div id="event-modal-body-substitution" class="hidden">
+              <div class="mb-3">
+                <label class="form-label">Cambio (OUT / IN)</label>
+                <div class="d-flex gap-2">
+                  <select id="sub-out-player" class="form-select">
+                    <option value="">Sale...</option>
+                  </select>
+                  <select id="sub-in-player" class="form-select">
+                    <option value="">Entra...</option>
+                  </select>
+                </div>
               </div>
             </div>
 

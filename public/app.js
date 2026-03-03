@@ -10,6 +10,13 @@ let teamConfig = { teamName: "", players: [] };
 let currentEventTeam = "propio"; // "propio" | "rival"
 let pendingEventOption = null;
 let currentEventMeta = { playerNumber: "", zone: "" };
+let lineupState = { onField: [], bench: [] };
+
+function getCurrentPeriod() {
+  const sel = document.getElementById("period-select");
+  if (!sel) return "1T";
+  return sel.value || "1T";
+}
 
 function saveUserToStorage() {
   if (currentUser) {
@@ -274,6 +281,11 @@ function addPlayerRow(player) {
   positionInput.placeholder = "Posición";
   positionInput.value = player?.position || "";
 
+  const starterCheckbox = document.createElement("input");
+  starterCheckbox.type = "checkbox";
+  starterCheckbox.title = "Titular";
+  starterCheckbox.checked = Boolean(player?.isStarter);
+
   const removeBtn = document.createElement("button");
   removeBtn.type = "button";
   removeBtn.className = "btn btn-sm btn-outline-danger";
@@ -286,6 +298,7 @@ function addPlayerRow(player) {
   row.appendChild(numberInput);
   row.appendChild(positionInput);
   row.appendChild(removeBtn);
+  row.appendChild(starterCheckbox);
   playersContainer.appendChild(row);
 }
 
@@ -335,26 +348,69 @@ function selectionsToObject() {
 async function startMatch() {
   const home = document.getElementById("home-team").value || "Local";
   const away = document.getElementById("away-team").value || "Visitante";
+  const playsAsSelect = document.getElementById("plays-as-select");
+  const playsAs = playsAsSelect ? playsAsSelect.value : "home";
+
+  const periodBtn = document.getElementById("btn-period");
+
+  // No permitir iniciar si no hay equipo propio guardado (nuevo partido)
+  if (!teamConfig.teamName || !Array.isArray(teamConfig.players) || teamConfig.players.length === 0) {
+    alert("Debes configurar y guardar tu equipo propio antes de iniciar un partido.");
+    return;
+  }
+
+  const players = teamConfig.players || [];
+  // Inicializar estado de alineación en campo / banquillo
+  lineupState = { onField: [], bench: [] };
+  players.forEach((p, index) => {
+    const id = index + 1;
+    const playerRef = {
+      id,
+      name: p.name,
+      number: p.number,
+      isStarter: !!p.isStarter,
+    };
+    if (p.isStarter) {
+      lineupState.onField.push(playerRef);
+    } else {
+      lineupState.bench.push(playerRef);
+    }
+  });
+  const lineup = players
+    .map((p, index) => ({
+      // en un futuro, mapear por playerId real si se gestiona en backend
+      playerId: index + 1,
+      isStarter: !!p.isStarter,
+    }))
+    .filter((p) => p.playerId);
+
   const res = await fetch("/api/matches", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ home, away }),
+    body: JSON.stringify({
+      home,
+      away,
+      playsAs,
+      lineup,
+    }),
   });
   const data = await res.json();
   matchId = data.matchId;
   document.getElementById(
     "teams-label"
-  ).textContent = `${home} vs ${away} (id: ${matchId})`;
+  ).textContent = `${home} vs ${away}`;
   document.getElementById("match-setup").classList.add("hidden");
   document.getElementById("match-meta").classList.remove("hidden");
 
   // Iniciar cronómetro automáticamente al iniciar partido
   startTimer();
-  const startBtn = document.getElementById("start-match");
-  if (startBtn) startBtn.textContent = "Pausar partido";
+  if (periodBtn) periodBtn.textContent = "Finalizar periodo";
 }
 
 function endMatch() {
+  const endBtn = document.getElementById("end-match");
+  const periodBtn = document.getElementById("btn-period");
+
   matchId = null;
   elapsed = 0;
   running = false;
@@ -364,8 +420,8 @@ function endMatch() {
   document.getElementById("match-meta").classList.add("hidden");
   document.getElementById("match-setup").classList.remove("hidden");
 
-  const startBtn = document.getElementById("start-match");
-  if (startBtn) startBtn.textContent = "Iniciar partido";
+  if (periodBtn) periodBtn.textContent = "Iniciar periodo";
+  if (endBtn) endBtn.textContent = "Finalizar partido";
 }
 
 async function registerEvent() {
@@ -383,7 +439,7 @@ async function registerEvent() {
   }
   const payload = {
     matchId,
-    period: "1T",
+    period: getCurrentPeriod(),
     tMatchMs: total,
     selections: {
       ...baseSelections,
@@ -402,18 +458,6 @@ async function undoLast() {
   await fetch(`/api/events/last?matchId=${encodeURIComponent(matchId)}`, {
     method: "DELETE",
   });
-}
-
-async function exportMatch() {
-  const id = document.getElementById("export-match-id").value.trim();
-  if (!id) return;
-  const res = await fetch(`/api/matches/${encodeURIComponent(id)}/export`);
-  const data = await res.json();
-  document.getElementById("export-output").textContent = JSON.stringify(
-    data,
-    null,
-    2
-  );
 }
 
 window.addEventListener("DOMContentLoaded", () => {
@@ -544,16 +588,35 @@ window.addEventListener("DOMContentLoaded", () => {
       }
 
       const players = [];
+      let invalidPlayer = false;
       playersContainer.querySelectorAll(".player-row").forEach((row) => {
-        const [nameInput, numberInput, positionInput] =
-          row.querySelectorAll("input");
+        const inputs = row.querySelectorAll("input");
+        const nameInput = inputs[0];
+        const numberInput = inputs[1];
+        const positionInput = inputs[2];
+        const starterCheckbox = inputs[3];
         const name = nameInput.value.trim();
         const number = numberInput.value.trim();
         const position = positionInput.value.trim();
         if (name || number || position) {
-          players.push({ name, number, position });
+          if (!name || !number) {
+            invalidPlayer = true;
+            return;
+          }
+          players.push({
+            name,
+            number,
+            position,
+            isStarter: starterCheckbox.checked,
+          });
         }
       });
+
+      if (invalidPlayer) {
+        msgEl.textContent =
+          "Todos los jugadores deben tener nombre y dorsal.";
+        return;
+      }
 
       teamConfig = { teamName, players };
       saveTeamToStorage();
@@ -593,21 +656,21 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   document
-    .getElementById("start-match")
+    .getElementById("btn-period")
     .addEventListener("click", async () => {
-      const startBtn = document.getElementById("start-match");
+      const periodBtn = document.getElementById("btn-period");
       // Si no hay partido aún, lo creamos y empezamos a contar
       if (!matchId) {
         await startMatch();
         return;
       }
-      // Si ya hay partido, este botón actúa como Pausar/Reanudar
+      // Si ya hay partido, este botón actúa como iniciar/finalizar periodo (start/stop reloj)
       if (running) {
         pauseTimer();
-        if (startBtn) startBtn.textContent = "Reanudar partido";
+        if (periodBtn) periodBtn.textContent = "Iniciar periodo";
       } else {
         startTimer();
-        if (startBtn) startBtn.textContent = "Pausar partido";
+        if (periodBtn) periodBtn.textContent = "Finalizar periodo";
       }
     });
   document
@@ -623,20 +686,14 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   document
-    .getElementById("register-event")
-    .addEventListener("click", () => registerEvent());
-  document
     .getElementById("undo-event")
     .addEventListener("click", () => undoLast());
-  document
-    .getElementById("export-json")
-    .addEventListener("click", () => exportMatch());
 
   // Clicks en botones de evento: si no es "Cambio", abrir modal de detalle
   document.querySelectorAll(".tag-button").forEach((btn) => {
     const category = btn.getAttribute("data-category");
     const option = btn.getAttribute("data-option");
-    if (category === "evento" && option !== "Cambio") {
+    if (category === "evento") {
       btn.addEventListener("click", () => {
         pendingEventOption = option;
         currentEventMeta = { playerNumber: "", zone: "" };
@@ -649,13 +706,65 @@ window.addEventListener("DOMContentLoaded", () => {
         document.querySelectorAll(".field-cell").forEach((cell) => {
           cell.classList.remove("active");
         });
+
+        const modalBodyRegular = document.getElementById(
+          "event-modal-body-regular"
+        );
+        const modalBodySubstitution = document.getElementById(
+          "event-modal-body-substitution"
+        );
+        const playerNumberGrid = document.getElementById(
+          "event-player-number-grid"
+        );
+        const subOutSelect = document.getElementById("sub-out-player");
+        const subInSelect = document.getElementById("sub-in-player");
+
+        if (option === "Cambio") {
+          modalBodyRegular.classList.add("hidden");
+          modalBodySubstitution.classList.remove("hidden");
+
+          // Rellenar selects IN/OUT según jugadores en campo / banquillo
+          subOutSelect.innerHTML = '<option value="">Sale...</option>';
+          lineupState.onField.forEach((p) => {
+            const opt = document.createElement("option");
+            opt.value = String(p.id);
+            opt.textContent = `${p.number} - ${p.name}`;
+            subOutSelect.appendChild(opt);
+          });
+
+          subInSelect.innerHTML = '<option value="">Entra...</option>';
+          lineupState.bench.forEach((p) => {
+            const opt = document.createElement("option");
+            opt.value = String(p.id);
+            opt.textContent = `${p.number} - ${p.name}`;
+            subInSelect.appendChild(opt);
+          });
+        } else {
+          modalBodyRegular.classList.remove("hidden");
+          modalBodySubstitution.classList.add("hidden");
+
+          // Rellenar grid de dorsales si es equipo propio
+          playerNumberGrid.innerHTML = "";
+          if (currentEventTeam === "propio") {
+            lineupState.onField.forEach((p) => {
+              const btnNum = document.createElement("button");
+              btnNum.type = "button";
+              btnNum.className = "number-cell";
+              btnNum.textContent = p.number || "";
+              btnNum.addEventListener("click", () => {
+                currentEventMeta.playerNumber = String(p.number || "");
+                playerInput.value = currentEventMeta.playerNumber;
+                playerNumberGrid
+                  .querySelectorAll(".number-cell")
+                  .forEach((b) => b.classList.remove("active"));
+                btnNum.classList.add("active");
+              });
+              playerNumberGrid.appendChild(btnNum);
+            });
+          }
+        }
+
         modal.classList.remove("hidden");
-      });
-    } else {
-      // Otros botones (incluido "Cambio") se comportan como toggle normal
-      btn.addEventListener("click", () => {
-        toggleSelection(category, option);
-        btn.classList.toggle("active");
       });
     }
   });
@@ -689,6 +798,13 @@ window.addEventListener("DOMContentLoaded", () => {
   const modal = document.getElementById("event-modal");
   const modalCancel = document.getElementById("event-modal-cancel");
   const modalOk = document.getElementById("event-modal-ok");
+  const modalBodyRegular = document.getElementById("event-modal-body-regular");
+  const modalBodySubstitution = document.getElementById(
+    "event-modal-body-substitution"
+  );
+  const playerNumberGrid = document.getElementById("event-player-number-grid");
+  const subOutSelect = document.getElementById("sub-out-player");
+  const subInSelect = document.getElementById("sub-in-player");
 
   modalCancel.addEventListener("click", () => {
     modal.classList.add("hidden");
@@ -701,6 +817,57 @@ window.addEventListener("DOMContentLoaded", () => {
       modal.classList.add("hidden");
       return;
     }
+
+    if (pendingEventOption === "Cambio") {
+      const outId = subOutSelect.value;
+      const inId = subInSelect.value;
+      if (!outId || !inId || outId === inId) {
+        return;
+      }
+      const outPlayer = lineupState.onField.find((p) => String(p.id) === outId);
+      const inPlayer = lineupState.bench.find((p) => String(p.id) === inId);
+      if (!outPlayer || !inPlayer) {
+        return;
+      }
+
+      // Actualizar estado local de alineación
+      lineupState.onField = lineupState.onField.filter(
+        (p) => p.id !== outPlayer.id
+      );
+      lineupState.bench = lineupState.bench.filter(
+        (p) => p.id !== inPlayer.id
+      );
+      lineupState.onField.push(inPlayer);
+      lineupState.bench.push(outPlayer);
+
+      // Registrar evento de cambio
+      selections["evento"] = new Set(["Cambio"]);
+      const baseSelections = selectionsToObject ? selectionsToObject() : {};
+      const total = elapsed + (running ? Date.now() - startTime : 0);
+      const payload = {
+        matchId,
+        period: getCurrentPeriod(),
+        tMatchMs: total,
+        selections: {
+          ...baseSelections,
+          equipo: [
+            currentEventTeam === "propio" ? "Equipo propio" : "Equipo rival",
+          ],
+          cambio_out: [outPlayer.number],
+          cambio_in: [inPlayer.number],
+        },
+      };
+      fetch("/api/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      modal.classList.add("hidden");
+      pendingEventOption = null;
+      return;
+    }
+
     const playerInput = document.getElementById("event-player-number");
     currentEventMeta.playerNumber = playerInput.value.trim();
 
@@ -723,6 +890,9 @@ window.addEventListener("DOMContentLoaded", () => {
       });
 
     modal.classList.add("hidden");
+
+    // Registrar evento inmediatamente al cerrar el modal
+    registerEvent();
   });
 
   updateTimerDisplay();
