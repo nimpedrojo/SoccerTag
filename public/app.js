@@ -11,6 +11,23 @@ let currentEventTeam = "propio"; // "propio" | "rival"
 let pendingEventOption = null;
 let currentEventMeta = { playerNumber: "", zone: "" };
 let lineupState = { onField: [], bench: [] };
+let recentEvents = [];
+let matchScore = { home: 0, away: 0 };
+
+const zoneMarkerPositions = {
+  "1": { x: 12.5, y: 16.5 },
+  "2": { x: 37.5, y: 16.5 },
+  "3": { x: 62.5, y: 16.5 },
+  "4": { x: 87.5, y: 16.5 },
+  "5": { x: 12.5, y: 50 },
+  "6": { x: 37.5, y: 50 },
+  "7": { x: 62.5, y: 50 },
+  "8": { x: 87.5, y: 50 },
+  "9": { x: 12.5, y: 83.5 },
+  "10": { x: 37.5, y: 83.5 },
+  "11": { x: 62.5, y: 83.5 },
+  "12": { x: 87.5, y: 83.5 },
+};
 
 function getCurrentPeriod() {
   const sel = document.getElementById("period-select");
@@ -309,6 +326,136 @@ function updateTimerDisplay() {
   document.getElementById("timer-display").textContent = `${mm}:${ss}`;
 }
 
+function formatMatchTime(tMatchMs) {
+  const minutes = Math.floor(tMatchMs / 60000);
+  const seconds = String(Math.floor((tMatchMs % 60000) / 1000)).padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
+function toEventSummary(evt) {
+  const sel = evt.selections || {};
+  const eventName = sel.evento?.[0] || "Evento";
+  const teamName = sel.equipo?.[0] || "";
+  const playerNumber = sel.jugador?.[0] || sel.cambio_out?.[0] || "";
+  const zone = sel.zona?.[0] || "";
+  const modifier = Array.isArray(sel.modificador) ? sel.modificador[0] : "";
+  const detailParts = [];
+  if (playerNumber) detailParts.push(`#${playerNumber}`);
+  if (sel.cambio_in?.[0]) detailParts.push(`-> #${sel.cambio_in[0]}`);
+  if (zone) detailParts.push(`Zona ${zone}`);
+  if (modifier) detailParts.push(modifier);
+  return {
+    title: `${eventName}${teamName ? ` · ${teamName}` : ""}`,
+    detail: detailParts.join(" · ") || "Sin detalle",
+    time: formatMatchTime(evt.tMatchMs || 0),
+  };
+}
+
+async function syncRecentEvents() {
+  if (!matchId) {
+    recentEvents = [];
+    matchScore = { home: 0, away: 0 };
+    renderRecentEvents();
+    updateScoreboard();
+    return;
+  }
+  const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}/export`);
+  if (!res.ok) return;
+  const data = await res.json();
+  recentEvents = (data.events || []).slice().reverse().slice(0, 8).map(toEventSummary);
+  const metaScore = data.meta?.score || {};
+  matchScore = {
+    home: Number(metaScore.home ?? 0),
+    away: Number(metaScore.away ?? 0),
+  };
+  renderRecentEvents();
+  updateScoreboard();
+}
+
+function resetEventComposer() {
+  pendingEventOption = null;
+  currentEventMeta = { playerNumber: "", zone: "" };
+  selections.modificador = new Set();
+  const playerInput = document.getElementById("event-player-number");
+  if (playerInput) playerInput.value = "";
+  document.querySelectorAll(".tag-button, .modifier-chip, .pitch-zone, .number-cell").forEach((el) => {
+    el.classList.remove("active");
+  });
+  const marker = document.getElementById("pitch-marker");
+  if (marker) marker.classList.add("hidden");
+}
+
+function setEventTeamSelection(team) {
+  currentEventTeam = team;
+  const ownBtn = document.getElementById("btn-event-own");
+  const rivalBtn = document.getElementById("btn-event-rival");
+  if (!ownBtn || !rivalBtn) return;
+  ownBtn.classList.toggle("active", team === "propio");
+  rivalBtn.classList.toggle("active", team === "rival");
+  ownBtn.setAttribute("aria-pressed", String(team === "propio"));
+  rivalBtn.setAttribute("aria-pressed", String(team === "rival"));
+}
+
+function renderPlayerGrid() {
+  const playerNumberGrid = document.getElementById("event-player-number-grid");
+  if (!playerNumberGrid) return;
+  playerNumberGrid.innerHTML = "";
+  if (currentEventTeam !== "propio") return;
+  lineupState.onField
+    .slice()
+    .sort((a, b) => Number(a.number) - Number(b.number))
+    .forEach((p) => {
+      const btnNum = document.createElement("button");
+      btnNum.type = "button";
+      btnNum.className = "number-cell";
+      btnNum.textContent = p.number || "";
+      btnNum.addEventListener("click", () => {
+        currentEventMeta.playerNumber = String(p.number || "");
+        const playerInput = document.getElementById("event-player-number");
+        if (playerInput) playerInput.value = currentEventMeta.playerNumber;
+        playerNumberGrid.querySelectorAll(".number-cell").forEach((b) => b.classList.remove("active"));
+        btnNum.classList.add("active");
+      });
+      playerNumberGrid.appendChild(btnNum);
+    });
+}
+
+function renderRecentEvents() {
+  const list = document.getElementById("recent-events-list");
+  if (!list) return;
+  list.innerHTML = "";
+  recentEvents.forEach((evt) => {
+    const card = document.createElement("article");
+    card.className = "recent-event-card";
+    card.innerHTML = `
+      <strong>${evt.title}</strong>
+      <small>${evt.detail}</small>
+      <span>${evt.time}</span>
+    `;
+    list.appendChild(card);
+  });
+}
+
+function updateScoreboard() {
+  const home = document.getElementById("score-home");
+  const away = document.getElementById("score-away");
+  if (home) home.textContent = String(matchScore.home);
+  if (away) away.textContent = String(matchScore.away);
+}
+
+function setPitchZone(zone) {
+  currentEventMeta.zone = zone;
+  document.querySelectorAll(".pitch-zone").forEach((cell) => {
+    cell.classList.toggle("active", cell.getAttribute("data-zone") === zone);
+  });
+  const marker = document.getElementById("pitch-marker");
+  const position = zoneMarkerPositions[zone];
+  if (!marker || !position) return;
+  marker.style.left = `${position.x}%`;
+  marker.style.top = `${position.y}%`;
+  marker.classList.remove("hidden");
+}
+
 function startTimer() {
   if (running) return;
   running = true;
@@ -399,12 +546,17 @@ async function startMatch() {
   document.getElementById(
     "teams-label"
   ).textContent = `${home} vs ${away}`;
+  document.getElementById("match-footer-id").textContent = `Partido: ${matchId}`;
+  document.getElementById("match-sync-status").textContent = "Estado: en vivo";
   document.getElementById("match-setup").classList.add("hidden");
   document.getElementById("match-meta").classList.remove("hidden");
 
   // Iniciar cronómetro automáticamente al iniciar partido
   startTimer();
-  if (periodBtn) periodBtn.textContent = "Finalizar periodo";
+  renderPlayerGrid();
+  await syncRecentEvents();
+  resetEventComposer();
+  if (periodBtn) periodBtn.textContent = "Pausar";
 }
 
 function endMatch() {
@@ -419,6 +571,13 @@ function endMatch() {
   updateTimerDisplay();
   document.getElementById("match-meta").classList.add("hidden");
   document.getElementById("match-setup").classList.remove("hidden");
+  recentEvents = [];
+  matchScore = { home: 0, away: 0 };
+  document.getElementById("match-footer-id").textContent = "Partido: pendiente";
+  document.getElementById("match-sync-status").textContent = "Estado: local";
+  renderRecentEvents();
+  updateScoreboard();
+  resetEventComposer();
 
   if (periodBtn) periodBtn.textContent = "Iniciar periodo";
   if (endBtn) endBtn.textContent = "Finalizar partido";
@@ -451,6 +610,8 @@ async function registerEvent() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+  await syncRecentEvents();
+  resetEventComposer();
 }
 
 async function undoLast() {
@@ -458,6 +619,7 @@ async function undoLast() {
   await fetch(`/api/events/last?matchId=${encodeURIComponent(matchId)}`, {
     method: "DELETE",
   });
+  await syncRecentEvents();
 }
 
 window.addEventListener("DOMContentLoaded", () => {
@@ -667,10 +829,10 @@ window.addEventListener("DOMContentLoaded", () => {
       // Si ya hay partido, este botón actúa como iniciar/finalizar periodo (start/stop reloj)
       if (running) {
         pauseTimer();
-        if (periodBtn) periodBtn.textContent = "Iniciar periodo";
+        if (periodBtn) periodBtn.textContent = "Reanudar";
       } else {
         startTimer();
-        if (periodBtn) periodBtn.textContent = "Finalizar periodo";
+        if (periodBtn) periodBtn.textContent = "Pausar";
       }
     });
   document
@@ -685,45 +847,20 @@ window.addEventListener("DOMContentLoaded", () => {
     updateTimerDisplay();
   });
 
-  document
-    .getElementById("undo-event")
-    .addEventListener("click", () => undoLast());
+  document.getElementById("undo-event").addEventListener("click", () => undoLast());
 
-  // Clicks en botones de evento: si no es "Cambio", abrir modal de detalle
   document.querySelectorAll(".tag-button").forEach((btn) => {
     const category = btn.getAttribute("data-category");
     const option = btn.getAttribute("data-option");
     if (category === "evento") {
       btn.addEventListener("click", () => {
-        pendingEventOption = option;
-        currentEventMeta = { playerNumber: "", zone: "" };
-        const modal = document.getElementById("event-modal");
-        const title = document.getElementById("event-modal-title");
-        const playerInput = document.getElementById("event-player-number");
-        title.textContent = `Detalle de evento: ${option}`;
-        playerInput.value = "";
-        // limpiar selección de zona
-        document.querySelectorAll(".field-cell").forEach((cell) => {
-          cell.classList.remove("active");
-        });
-
-        const modalBodyRegular = document.getElementById(
-          "event-modal-body-regular"
-        );
-        const modalBodySubstitution = document.getElementById(
-          "event-modal-body-substitution"
-        );
-        const playerNumberGrid = document.getElementById(
-          "event-player-number-grid"
-        );
-        const subOutSelect = document.getElementById("sub-out-player");
-        const subInSelect = document.getElementById("sub-in-player");
-
         if (option === "Cambio") {
-          modalBodyRegular.classList.add("hidden");
+          pendingEventOption = option;
+          document.getElementById("event-modal").classList.remove("hidden");
+          const subOutSelect = document.getElementById("sub-out-player");
+          const subInSelect = document.getElementById("sub-in-player");
+          const modalBodySubstitution = document.getElementById("event-modal-body-substitution");
           modalBodySubstitution.classList.remove("hidden");
-
-          // Rellenar selects IN/OUT según jugadores en campo / banquillo
           subOutSelect.innerHTML = '<option value="">Sale...</option>';
           lineupState.onField.forEach((p) => {
             const opt = document.createElement("option");
@@ -731,7 +868,6 @@ window.addEventListener("DOMContentLoaded", () => {
             opt.textContent = `${p.number} - ${p.name}`;
             subOutSelect.appendChild(opt);
           });
-
           subInSelect.innerHTML = '<option value="">Entra...</option>';
           lineupState.bench.forEach((p) => {
             const opt = document.createElement("option");
@@ -739,32 +875,16 @@ window.addEventListener("DOMContentLoaded", () => {
             opt.textContent = `${p.number} - ${p.name}`;
             subInSelect.appendChild(opt);
           });
-        } else {
-          modalBodyRegular.classList.remove("hidden");
-          modalBodySubstitution.classList.add("hidden");
-
-          // Rellenar grid de dorsales si es equipo propio
-          playerNumberGrid.innerHTML = "";
-          if (currentEventTeam === "propio") {
-            lineupState.onField.forEach((p) => {
-              const btnNum = document.createElement("button");
-              btnNum.type = "button";
-              btnNum.className = "number-cell";
-              btnNum.textContent = p.number || "";
-              btnNum.addEventListener("click", () => {
-                currentEventMeta.playerNumber = String(p.number || "");
-                playerInput.value = currentEventMeta.playerNumber;
-                playerNumberGrid
-                  .querySelectorAll(".number-cell")
-                  .forEach((b) => b.classList.remove("active"));
-                btnNum.classList.add("active");
-              });
-              playerNumberGrid.appendChild(btnNum);
-            });
-          }
+          return;
         }
-
-        modal.classList.remove("hidden");
+        pendingEventOption = pendingEventOption === option ? null : option;
+        document.querySelectorAll('.tag-button[data-category="evento"]').forEach((button) => {
+          button.classList.toggle(
+            "active",
+            pendingEventOption !== null &&
+              button.getAttribute("data-option") === pendingEventOption
+          );
+        });
       });
     }
   });
@@ -773,24 +893,30 @@ window.addEventListener("DOMContentLoaded", () => {
   const ownBtn = document.getElementById("btn-event-own");
   const rivalBtn = document.getElementById("btn-event-rival");
   if (ownBtn && rivalBtn) {
+    setEventTeamSelection("propio");
     ownBtn.addEventListener("click", () => {
-      currentEventTeam = "propio";
-      ownBtn.classList.add("active");
-      rivalBtn.classList.remove("active");
+      setEventTeamSelection("propio");
+      renderPlayerGrid();
     });
     rivalBtn.addEventListener("click", () => {
-      currentEventTeam = "rival";
-      rivalBtn.classList.add("active");
-      ownBtn.classList.remove("active");
+      setEventTeamSelection("rival");
+      renderPlayerGrid();
     });
   }
 
-  // Selección de zona del campo en el modal
-  document.querySelectorAll(".field-cell").forEach((cell) => {
+  document.querySelectorAll(".pitch-zone").forEach((cell) => {
     cell.addEventListener("click", () => {
-      document.querySelectorAll(".field-cell").forEach((c) => c.classList.remove("active"));
-      cell.classList.add("active");
-      currentEventMeta.zone = cell.getAttribute("data-zone") || "";
+      setPitchZone(cell.getAttribute("data-zone") || "");
+    });
+  });
+
+  document.querySelectorAll(".modifier-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const category = chip.getAttribute("data-category");
+      const option = chip.getAttribute("data-option");
+      if (!category || !option) return;
+      toggleSelection(category, option);
+      chip.classList.toggle("active");
     });
   });
 
@@ -798,18 +924,16 @@ window.addEventListener("DOMContentLoaded", () => {
   const modal = document.getElementById("event-modal");
   const modalCancel = document.getElementById("event-modal-cancel");
   const modalOk = document.getElementById("event-modal-ok");
-  const modalBodyRegular = document.getElementById("event-modal-body-regular");
   const modalBodySubstitution = document.getElementById(
     "event-modal-body-substitution"
   );
-  const playerNumberGrid = document.getElementById("event-player-number-grid");
   const subOutSelect = document.getElementById("sub-out-player");
   const subInSelect = document.getElementById("sub-in-player");
 
   modalCancel.addEventListener("click", () => {
     modal.classList.add("hidden");
     pendingEventOption = null;
-    currentEventMeta = { playerNumber: "", zone: "" };
+    modalBodySubstitution.classList.add("hidden");
   });
 
   modalOk.addEventListener("click", () => {
@@ -861,7 +985,8 @@ window.addEventListener("DOMContentLoaded", () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      });
+      }).then(() => syncRecentEvents());
+      renderPlayerGrid();
 
       modal.classList.add("hidden");
       pendingEventOption = null;
@@ -896,4 +1021,26 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   updateTimerDisplay();
+  renderRecentEvents();
+  updateScoreboard();
+  renderPlayerGrid();
+
+  document.getElementById("event-player-number").addEventListener("input", (event) => {
+    currentEventMeta.playerNumber = event.target.value.trim();
+    document.querySelectorAll(".number-cell").forEach((cell) => {
+      cell.classList.toggle("active", cell.textContent === currentEventMeta.playerNumber);
+    });
+  });
+
+  document.getElementById("discard-event").addEventListener("click", () => {
+    resetEventComposer();
+  });
+
+  document.getElementById("confirm-event").addEventListener("click", () => {
+    if (!pendingEventOption) {
+      return;
+    }
+    selections.evento = new Set([pendingEventOption]);
+    registerEvent();
+  });
 });

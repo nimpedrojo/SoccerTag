@@ -129,89 +129,160 @@
         </section>
 
         <!-- Pantalla de partido / tagging -->
-        <section class="panel tags col-12 col-lg-8 hidden" id="match-screen">
-          <div class="match-header">
-            <div class="match-setup" id="match-setup">
-              <input
-                id="home-team"
-                class="team-input"
-                placeholder="Equipo propio"
-                readonly
-              />
-              <input
-                id="away-team"
-                class="team-input"
-                placeholder="Equipo rival"
-              />
-              <select id="plays-as-select" class="form-select form-select-sm w-auto d-inline-block ms-2">
-                <option value="home">Jugamos como local</option>
-                <option value="away">Jugamos como visitante</option>
-              </select>
-            </div>
-            <div class="match-meta hidden" id="match-meta">
-              <span id="teams-label"></span>
-              <div class="d-flex align-items-center gap-2">
-                <select
-                  id="period-select"
-                  class="form-select form-select-sm w-auto"
-                >
-                  <option value="1T">1T</option>
-                  <option value="2T">2T</option>
-                </select>
-                <button id="btn-period" class="pill btn btn-success">
-                  Iniciar periodo
-                </button>
-                <button id="end-match" class="pill">Finalizar partido</button>
+        <section class="panel tags col-12 hidden" id="match-screen">
+          <div class="match-ui">
+            <header class="match-ui-header">
+              <div class="match-ui-brand">
+                <button class="icon-button" type="button" aria-label="Menu">☰</button>
+                <div class="brand-lockup">
+                  <span class="eyebrow">MatchTag</span>
+                  <strong>MatchTag Pro</strong>
+                </div>
               </div>
-            </div>
-            <div class="timer">
-              <span id="timer-display" class="timer-display">0:00</span>
-              <button id="timer-reset" class="pill">Reset</button>
-            </div>
-          </div>
 
-          <div class="team-tag-toggle mb-2">
-            <button
-              id="btn-event-own"
-              class="pill btn btn-sm btn-outline-primary me-1 active"
-              type="button"
-            >
-              Equipo propio
-            </button>
-            <button
-              id="btn-event-rival"
-              class="pill btn btn-sm btn-outline-secondary"
-              type="button"
-            >
-              Equipo rival
-            </button>
-          </div>
+              <div class="match-ui-scoreboard">
+                <div class="score-block">
+                  <span class="eyebrow">Reloj de partido</span>
+                  <span id="timer-display" class="timer-display">0:00</span>
+                </div>
+                <div class="score-block compact">
+                  <span class="eyebrow" id="teams-label">Home vs Away</span>
+                  <div class="score-values">
+                    <span id="score-home">0</span>
+                    <span>-</span>
+                    <span id="score-away">0</span>
+                  </div>
+                </div>
+              </div>
 
-          <div class="grid">
-            <button class="tag-button" data-category="evento" data-option="Gol">
-              Gol
-            </button>
-            <button class="tag-button" data-category="evento" data-option="Tiro fuera">
-              Tiro fuera
-            </button>
-            <button class="tag-button" data-category="evento" data-option="Tiro a puerta">
-              Tiro a puerta
-            </button>
-            <button class="tag-button" data-category="evento" data-option="Falta">
-              Falta
-            </button>
-            <button class="tag-button" data-category="evento" data-option="Tarjeta amarilla">
-              Tarjeta amarilla
-            </button>
-            <button class="tag-button" data-category="evento" data-option="Tarjeta roja">
-              Tarjeta roja
-            </button>
-            <button class="tag-button" data-category="evento" data-option="Cambio">
-              Cambio
-            </button>
-          </div>
-          <div class="tag-actions">
-            <button id="undo-event" class="pill">Undo último</button>
+              <div class="match-ui-actions">
+                <div class="match-setup" id="match-setup">
+                  <input id="home-team" class="team-input" placeholder="Equipo propio" readonly />
+                  <input id="away-team" class="team-input" placeholder="Equipo rival" />
+                  <select id="plays-as-select" class="form-select form-select-sm">
+                    <option value="home">Jugamos como local</option>
+                    <option value="away">Jugamos como visitante</option>
+                  </select>
+                </div>
+                <div class="match-meta hidden" id="match-meta">
+                  <select id="period-select" class="form-select form-select-sm">
+                    <option value="1T">1T</option>
+                    <option value="2T">2T</option>
+                  </select>
+                </div>
+                <button id="btn-period" class="action-button subtle" type="button">Iniciar periodo</button>
+                <button id="end-match" class="action-button strong" type="button">Finalizar partido</button>
+              </div>
+            </header>
+
+            <div class="match-ui-body">
+              <aside class="events-panel">
+                <div class="panel-title-row">
+                  <span class="panel-title">Eventos recientes</span>
+                </div>
+                <div id="recent-events-list" class="recent-events-list"></div>
+                <button id="undo-event" class="secondary-action full-width" type="button">
+                  Deshacer ultimo
+                </button>
+              </aside>
+
+              <section class="pitch-panel">
+                <div class="pitch-board">
+                  <div id="field-grid" class="pitch-surface">
+                    <div class="pitch-lines pitch-lines-top"></div>
+                    <div class="pitch-lines pitch-lines-bottom"></div>
+                    <div class="pitch-midline"></div>
+                    <div class="pitch-center-circle"></div>
+                    <div id="pitch-marker" class="pitch-marker hidden"></div>
+                    <button type="button" class="pitch-zone" data-zone="1"><span>1</span></button>
+                    <button type="button" class="pitch-zone" data-zone="2"><span>2</span></button>
+                    <button type="button" class="pitch-zone" data-zone="3"><span>3</span></button>
+                    <button type="button" class="pitch-zone" data-zone="4"><span>4</span></button>
+                    <button type="button" class="pitch-zone" data-zone="5"><span>5</span></button>
+                    <button type="button" class="pitch-zone" data-zone="6"><span>6</span></button>
+                    <button type="button" class="pitch-zone" data-zone="7"><span>7</span></button>
+                    <button type="button" class="pitch-zone" data-zone="8"><span>8</span></button>
+                    <button type="button" class="pitch-zone" data-zone="9"><span>9</span></button>
+                    <button type="button" class="pitch-zone" data-zone="10"><span>10</span></button>
+                    <button type="button" class="pitch-zone" data-zone="11"><span>11</span></button>
+                    <button type="button" class="pitch-zone" data-zone="12"><span>12</span></button>
+                  </div>
+                </div>
+              </section>
+
+              <aside class="selection-panel">
+                <div class="selection-block">
+                  <span class="panel-title">Seleccion activa de jugador</span>
+                  <input
+                    id="event-player-number"
+                    class="form-control jersey-search"
+                    placeholder="Buscar dorsal"
+                  />
+                  <div id="event-player-number-grid" class="jersey-grid"></div>
+                </div>
+
+                <div class="selection-block">
+                  <span class="panel-title">Modificadores del evento</span>
+                  <div class="modifier-grid">
+                    <button class="modifier-chip" data-category="modificador" data-option="Pie izquierdo" type="button">Pie izquierdo</button>
+                    <button class="modifier-chip" data-category="modificador" data-option="Pie derecho" type="button">Pie derecho</button>
+                    <button class="modifier-chip" data-category="modificador" data-option="Cabeza" type="button">Cabeza</button>
+                    <button class="modifier-chip" data-category="modificador" data-option="Volea" type="button">Volea</button>
+                    <button class="modifier-chip" data-category="modificador" data-option="Regate" type="button">Regate</button>
+                    <button class="modifier-chip" data-category="modificador" data-option="Bloqueado" type="button">Bloqueado</button>
+                  </div>
+                </div>
+
+                <div class="selection-footer">
+                  <button id="confirm-event" class="action-button strong full-width" type="button">
+                    Confirmar evento
+                  </button>
+                  <button id="discard-event" class="text-action" type="button">Descartar evento</button>
+                  <button id="timer-reset" class="text-action" type="button">Reiniciar reloj</button>
+                </div>
+              </aside>
+            </div>
+
+            <section class="match-ui-actions-grid">
+              <div class="event-groups">
+                <div class="group-column">
+                  <span class="group-label">Posesion</span>
+                  <button id="btn-event-own" class="team-tile active" type="button">Equipo propio</button>
+                  <button id="btn-event-rival" class="team-tile" type="button">Equipo rival</button>
+                </div>
+                <div class="group-column">
+                  <span class="group-label">Ataque</span>
+                  <button class="tag-button emphasis" data-category="evento" data-option="Gol">Gol</button>
+                  <button class="tag-button" data-category="evento" data-option="Tiro a puerta">Tiro a puerta</button>
+                  <button class="tag-button" data-category="evento" data-option="Tiro fuera">Tiro fuera</button>
+                  <button class="tag-button" data-category="evento" data-option="Centro">Centro</button>
+                </div>
+                <div class="group-column">
+                  <span class="group-label">Defensa</span>
+                  <button class="tag-button" data-category="evento" data-option="Falta">Falta</button>
+                  <button class="tag-button" data-category="evento" data-option="Intercepción">Intercepcion</button>
+                  <button class="tag-button" data-category="evento" data-option="Despeje">Despeje</button>
+                </div>
+                <div class="group-column">
+                  <span class="group-label">Balon parado</span>
+                  <button class="tag-button" data-category="evento" data-option="Corner">Corner</button>
+                  <button class="tag-button" data-category="evento" data-option="Falta lateral">Falta lateral</button>
+                  <button class="tag-button" data-category="evento" data-option="Cambio">Cambio</button>
+                </div>
+                <div class="group-column">
+                  <span class="group-label">Disciplina</span>
+                  <button class="tag-button" data-category="evento" data-option="Tarjeta amarilla">Amarilla</button>
+                  <button class="tag-button" data-category="evento" data-option="Tarjeta roja">Roja</button>
+                </div>
+              </div>
+            </section>
+
+            <footer class="match-ui-footer">
+              <span id="match-footer-id">Partido: pendiente</span>
+              <span>Estadio: Campo A</span>
+              <span>Tiempo: Despejado 18C</span>
+              <span id="match-sync-status">Estado: local</span>
+            </footer>
           </div>
         </section>
 
@@ -265,38 +336,7 @@
         <!-- Modal de detalle de evento -->
         <div id="event-modal" class="modal-overlay hidden">
           <div class="modal-content">
-            <h3 id="event-modal-title" class="mb-3">Detalle de evento</h3>
-
-            <div id="event-modal-body-regular">
-              <div class="mb-3">
-                <label for="event-player-number" class="form-label">Dorsal jugador</label>
-                <input
-                  id="event-player-number"
-                  class="form-control"
-                  placeholder="Número de camiseta"
-                />
-                <div id="event-player-number-grid" class="number-grid mt-2"></div>
-              </div>
-
-              <div class="mb-2">
-                <p class="mb-1">Zona del campo</p>
-                <div id="field-grid" class="field-grid">
-                  <!-- celdas generadas en HTML -->
-                  <button type="button" class="field-cell" data-zone="1">1</button>
-                  <button type="button" class="field-cell" data-zone="2">2</button>
-                  <button type="button" class="field-cell" data-zone="3">3</button>
-                  <button type="button" class="field-cell" data-zone="4">4</button>
-                  <button type="button" class="field-cell" data-zone="5">5</button>
-                  <button type="button" class="field-cell" data-zone="6">6</button>
-                  <button type="button" class="field-cell" data-zone="7">7</button>
-                  <button type="button" class="field-cell" data-zone="8">8</button>
-                  <button type="button" class="field-cell" data-zone="9">9</button>
-                  <button type="button" class="field-cell" data-zone="10">10</button>
-                  <button type="button" class="field-cell" data-zone="11">11</button>
-                  <button type="button" class="field-cell" data-zone="12">12</button>
-                </div>
-              </div>
-            </div>
+            <h3 id="event-modal-title" class="mb-3">Cambio</h3>
 
             <div id="event-modal-body-substitution" class="hidden">
               <div class="mb-3">

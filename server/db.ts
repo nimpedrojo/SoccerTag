@@ -5,7 +5,7 @@ const {
   DB_HOST = "localhost",
   DB_PORT = "3306",
   DB_USER = "root",
-  DB_PASSWORD = "",
+  DB_PASSWORD = "N1mp3dr0j0",
   DB_NAME = "soccertag",
 } = process.env;
 
