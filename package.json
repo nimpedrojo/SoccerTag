@@ -6,7 +6,8 @@
     "dev:server": "tsx watch server/index.ts",
     "start:server": "node --enable-source-maps server/dist/index.js",
     "build:server": "tsc -p tsconfig.server.json && node --enable-source-maps server/dist/index.js",
-    "test": "vitest"
+    "test": "vitest",
+    "etl:events": "tsx server/etl-events.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.0",

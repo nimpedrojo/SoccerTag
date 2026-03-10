@@ -10,6 +10,30 @@ let teamConfig = { teamName: "", players: [] };
 let currentEventTeam = "propio"; // "propio" | "rival"
 let pendingEventOption = null;
 let currentEventMeta = { playerNumber: "", zone: "" };
+let lineupState = { onField: [], bench: [] };
+let recentEvents = [];
+let matchScore = { home: 0, away: 0 };
+
+const zoneMarkerPositions = {
+  "1": { x: 12.5, y: 16.5 },
+  "2": { x: 37.5, y: 16.5 },
+  "3": { x: 62.5, y: 16.5 },
+  "4": { x: 87.5, y: 16.5 },
+  "5": { x: 12.5, y: 50 },
+  "6": { x: 37.5, y: 50 },
+  "7": { x: 62.5, y: 50 },
+  "8": { x: 87.5, y: 50 },
+  "9": { x: 12.5, y: 83.5 },
+  "10": { x: 37.5, y: 83.5 },
+  "11": { x: 62.5, y: 83.5 },
+  "12": { x: 87.5, y: 83.5 },
+};
+
+function getCurrentPeriod() {
+  const sel = document.getElementById("period-select");
+  if (!sel) return "1T";
+  return sel.value || "1T";
+}
 
 function saveUserToStorage() {
   if (currentUser) {
@@ -274,6 +298,11 @@ function addPlayerRow(player) {
   positionInput.placeholder = "Posición";
   positionInput.value = player?.position || "";
 
+  const starterCheckbox = document.createElement("input");
+  starterCheckbox.type = "checkbox";
+  starterCheckbox.title = "Titular";
+  starterCheckbox.checked = Boolean(player?.isStarter);
+
   const removeBtn = document.createElement("button");
   removeBtn.type = "button";
   removeBtn.className = "btn btn-sm btn-outline-danger";
@@ -286,6 +315,7 @@ function addPlayerRow(player) {
   row.appendChild(numberInput);
   row.appendChild(positionInput);
   row.appendChild(removeBtn);
+  row.appendChild(starterCheckbox);
   playersContainer.appendChild(row);
 }
 
@@ -294,6 +324,136 @@ function updateTimerDisplay() {
   const mm = Math.floor(total / 60000);
   const ss = String(Math.floor((total % 60000) / 1000)).padStart(2, "0");
   document.getElementById("timer-display").textContent = `${mm}:${ss}`;
+}
+
+function formatMatchTime(tMatchMs) {
+  const minutes = Math.floor(tMatchMs / 60000);
+  const seconds = String(Math.floor((tMatchMs % 60000) / 1000)).padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
+function toEventSummary(evt) {
+  const sel = evt.selections || {};
+  const eventName = sel.evento?.[0] || "Evento";
+  const teamName = sel.equipo?.[0] || "";
+  const playerNumber = sel.jugador?.[0] || sel.cambio_out?.[0] || "";
+  const zone = sel.zona?.[0] || "";
+  const modifier = Array.isArray(sel.modificador) ? sel.modificador[0] : "";
+  const detailParts = [];
+  if (playerNumber) detailParts.push(`#${playerNumber}`);
+  if (sel.cambio_in?.[0]) detailParts.push(`-> #${sel.cambio_in[0]}`);
+  if (zone) detailParts.push(`Zona ${zone}`);
+  if (modifier) detailParts.push(modifier);
+  return {
+    title: `${eventName}${teamName ? ` · ${teamName}` : ""}`,
+    detail: detailParts.join(" · ") || "Sin detalle",
+    time: formatMatchTime(evt.tMatchMs || 0),
+  };
+}
+
+async function syncRecentEvents() {
+  if (!matchId) {
+    recentEvents = [];
+    matchScore = { home: 0, away: 0 };
+    renderRecentEvents();
+    updateScoreboard();
+    return;
+  }
+  const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}/export`);
+  if (!res.ok) return;
+  const data = await res.json();
+  recentEvents = (data.events || []).slice().reverse().slice(0, 8).map(toEventSummary);
+  const metaScore = data.meta?.score || {};
+  matchScore = {
+    home: Number(metaScore.home ?? 0),
+    away: Number(metaScore.away ?? 0),
+  };
+  renderRecentEvents();
+  updateScoreboard();
+}
+
+function resetEventComposer() {
+  pendingEventOption = null;
+  currentEventMeta = { playerNumber: "", zone: "" };
+  selections.modificador = new Set();
+  const playerInput = document.getElementById("event-player-number");
+  if (playerInput) playerInput.value = "";
+  document.querySelectorAll(".tag-button, .modifier-chip, .pitch-zone, .number-cell").forEach((el) => {
+    el.classList.remove("active");
+  });
+  const marker = document.getElementById("pitch-marker");
+  if (marker) marker.classList.add("hidden");
+}
+
+function setEventTeamSelection(team) {
+  currentEventTeam = team;
+  const ownBtn = document.getElementById("btn-event-own");
+  const rivalBtn = document.getElementById("btn-event-rival");
+  if (!ownBtn || !rivalBtn) return;
+  ownBtn.classList.toggle("active", team === "propio");
+  rivalBtn.classList.toggle("active", team === "rival");
+  ownBtn.setAttribute("aria-pressed", String(team === "propio"));
+  rivalBtn.setAttribute("aria-pressed", String(team === "rival"));
+}
+
+function renderPlayerGrid() {
+  const playerNumberGrid = document.getElementById("event-player-number-grid");
+  if (!playerNumberGrid) return;
+  playerNumberGrid.innerHTML = "";
+  if (currentEventTeam !== "propio") return;
+  lineupState.onField
+    .slice()
+    .sort((a, b) => Number(a.number) - Number(b.number))
+    .forEach((p) => {
+      const btnNum = document.createElement("button");
+      btnNum.type = "button";
+      btnNum.className = "number-cell";
+      btnNum.textContent = p.number || "";
+      btnNum.addEventListener("click", () => {
+        currentEventMeta.playerNumber = String(p.number || "");
+        const playerInput = document.getElementById("event-player-number");
+        if (playerInput) playerInput.value = currentEventMeta.playerNumber;
+        playerNumberGrid.querySelectorAll(".number-cell").forEach((b) => b.classList.remove("active"));
+        btnNum.classList.add("active");
+      });
+      playerNumberGrid.appendChild(btnNum);
+    });
+}
+
+function renderRecentEvents() {
+  const list = document.getElementById("recent-events-list");
+  if (!list) return;
+  list.innerHTML = "";
+  recentEvents.forEach((evt) => {
+    const card = document.createElement("article");
+    card.className = "recent-event-card";
+    card.innerHTML = `
+      <strong>${evt.title}</strong>
+      <small>${evt.detail}</small>
+      <span>${evt.time}</span>
+    `;
+    list.appendChild(card);
+  });
+}
+
+function updateScoreboard() {
+  const home = document.getElementById("score-home");
+  const away = document.getElementById("score-away");
+  if (home) home.textContent = String(matchScore.home);
+  if (away) away.textContent = String(matchScore.away);
+}
+
+function setPitchZone(zone) {
+  currentEventMeta.zone = zone;
+  document.querySelectorAll(".pitch-zone").forEach((cell) => {
+    cell.classList.toggle("active", cell.getAttribute("data-zone") === zone);
+  });
+  const marker = document.getElementById("pitch-marker");
+  const position = zoneMarkerPositions[zone];
+  if (!marker || !position) return;
+  marker.style.left = `${position.x}%`;
+  marker.style.top = `${position.y}%`;
+  marker.classList.remove("hidden");
 }
 
 function startTimer() {
@@ -335,26 +495,74 @@ function selectionsToObject() {
 async function startMatch() {
   const home = document.getElementById("home-team").value || "Local";
   const away = document.getElementById("away-team").value || "Visitante";
+  const playsAsSelect = document.getElementById("plays-as-select");
+  const playsAs = playsAsSelect ? playsAsSelect.value : "home";
+
+  const periodBtn = document.getElementById("btn-period");
+
+  // No permitir iniciar si no hay equipo propio guardado (nuevo partido)
+  if (!teamConfig.teamName || !Array.isArray(teamConfig.players) || teamConfig.players.length === 0) {
+    alert("Debes configurar y guardar tu equipo propio antes de iniciar un partido.");
+    return;
+  }
+
+  const players = teamConfig.players || [];
+  // Inicializar estado de alineación en campo / banquillo
+  lineupState = { onField: [], bench: [] };
+  players.forEach((p, index) => {
+    const id = index + 1;
+    const playerRef = {
+      id,
+      name: p.name,
+      number: p.number,
+      isStarter: !!p.isStarter,
+    };
+    if (p.isStarter) {
+      lineupState.onField.push(playerRef);
+    } else {
+      lineupState.bench.push(playerRef);
+    }
+  });
+  const lineup = players
+    .map((p, index) => ({
+      // en un futuro, mapear por playerId real si se gestiona en backend
+      playerId: index + 1,
+      isStarter: !!p.isStarter,
+    }))
+    .filter((p) => p.playerId);
+
   const res = await fetch("/api/matches", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ home, away }),
+    body: JSON.stringify({
+      home,
+      away,
+      playsAs,
+      lineup,
+    }),
   });
   const data = await res.json();
   matchId = data.matchId;
   document.getElementById(
     "teams-label"
-  ).textContent = `${home} vs ${away} (id: ${matchId})`;
+  ).textContent = `${home} vs ${away}`;
+  document.getElementById("match-footer-id").textContent = `Partido: ${matchId}`;
+  document.getElementById("match-sync-status").textContent = "Estado: en vivo";
   document.getElementById("match-setup").classList.add("hidden");
   document.getElementById("match-meta").classList.remove("hidden");
 
   // Iniciar cronómetro automáticamente al iniciar partido
   startTimer();
-  const startBtn = document.getElementById("start-match");
-  if (startBtn) startBtn.textContent = "Pausar partido";
+  renderPlayerGrid();
+  await syncRecentEvents();
+  resetEventComposer();
+  if (periodBtn) periodBtn.textContent = "Pausar";
 }
 
 function endMatch() {
+  const endBtn = document.getElementById("end-match");
+  const periodBtn = document.getElementById("btn-period");
+
   matchId = null;
   elapsed = 0;
   running = false;
@@ -363,9 +571,16 @@ function endMatch() {
   updateTimerDisplay();
   document.getElementById("match-meta").classList.add("hidden");
   document.getElementById("match-setup").classList.remove("hidden");
+  recentEvents = [];
+  matchScore = { home: 0, away: 0 };
+  document.getElementById("match-footer-id").textContent = "Partido: pendiente";
+  document.getElementById("match-sync-status").textContent = "Estado: local";
+  renderRecentEvents();
+  updateScoreboard();
+  resetEventComposer();
 
-  const startBtn = document.getElementById("start-match");
-  if (startBtn) startBtn.textContent = "Iniciar partido";
+  if (periodBtn) periodBtn.textContent = "Iniciar periodo";
+  if (endBtn) endBtn.textContent = "Finalizar partido";
 }
 
 async function registerEvent() {
@@ -383,7 +598,7 @@ async function registerEvent() {
   }
   const payload = {
     matchId,
-    period: "1T",
+    period: getCurrentPeriod(),
     tMatchMs: total,
     selections: {
       ...baseSelections,
@@ -395,6 +610,8 @@ async function registerEvent() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+  await syncRecentEvents();
+  resetEventComposer();
 }
 
 async function undoLast() {
@@ -402,18 +619,7 @@ async function undoLast() {
   await fetch(`/api/events/last?matchId=${encodeURIComponent(matchId)}`, {
     method: "DELETE",
   });
-}
-
-async function exportMatch() {
-  const id = document.getElementById("export-match-id").value.trim();
-  if (!id) return;
-  const res = await fetch(`/api/matches/${encodeURIComponent(id)}/export`);
-  const data = await res.json();
-  document.getElementById("export-output").textContent = JSON.stringify(
-    data,
-    null,
-    2
-  );
+  await syncRecentEvents();
 }
 
 window.addEventListener("DOMContentLoaded", () => {
@@ -544,16 +750,35 @@ window.addEventListener("DOMContentLoaded", () => {
       }
 
       const players = [];
+      let invalidPlayer = false;
       playersContainer.querySelectorAll(".player-row").forEach((row) => {
-        const [nameInput, numberInput, positionInput] =
-          row.querySelectorAll("input");
+        const inputs = row.querySelectorAll("input");
+        const nameInput = inputs[0];
+        const numberInput = inputs[1];
+        const positionInput = inputs[2];
+        const starterCheckbox = inputs[3];
         const name = nameInput.value.trim();
         const number = numberInput.value.trim();
         const position = positionInput.value.trim();
         if (name || number || position) {
-          players.push({ name, number, position });
+          if (!name || !number) {
+            invalidPlayer = true;
+            return;
+          }
+          players.push({
+            name,
+            number,
+            position,
+            isStarter: starterCheckbox.checked,
+          });
         }
       });
+
+      if (invalidPlayer) {
+        msgEl.textContent =
+          "Todos los jugadores deben tener nombre y dorsal.";
+        return;
+      }
 
       teamConfig = { teamName, players };
       saveTeamToStorage();
@@ -593,21 +818,21 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   document
-    .getElementById("start-match")
+    .getElementById("btn-period")
     .addEventListener("click", async () => {
-      const startBtn = document.getElementById("start-match");
+      const periodBtn = document.getElementById("btn-period");
       // Si no hay partido aún, lo creamos y empezamos a contar
       if (!matchId) {
         await startMatch();
         return;
       }
-      // Si ya hay partido, este botón actúa como Pausar/Reanudar
+      // Si ya hay partido, este botón actúa como iniciar/finalizar periodo (start/stop reloj)
       if (running) {
         pauseTimer();
-        if (startBtn) startBtn.textContent = "Reanudar partido";
+        if (periodBtn) periodBtn.textContent = "Reanudar";
       } else {
         startTimer();
-        if (startBtn) startBtn.textContent = "Pausar partido";
+        if (periodBtn) periodBtn.textContent = "Pausar";
       }
     });
   document
@@ -622,40 +847,44 @@ window.addEventListener("DOMContentLoaded", () => {
     updateTimerDisplay();
   });
 
-  document
-    .getElementById("register-event")
-    .addEventListener("click", () => registerEvent());
-  document
-    .getElementById("undo-event")
-    .addEventListener("click", () => undoLast());
-  document
-    .getElementById("export-json")
-    .addEventListener("click", () => exportMatch());
+  document.getElementById("undo-event").addEventListener("click", () => undoLast());
 
-  // Clicks en botones de evento: si no es "Cambio", abrir modal de detalle
   document.querySelectorAll(".tag-button").forEach((btn) => {
     const category = btn.getAttribute("data-category");
     const option = btn.getAttribute("data-option");
-    if (category === "evento" && option !== "Cambio") {
+    if (category === "evento") {
       btn.addEventListener("click", () => {
-        pendingEventOption = option;
-        currentEventMeta = { playerNumber: "", zone: "" };
-        const modal = document.getElementById("event-modal");
-        const title = document.getElementById("event-modal-title");
-        const playerInput = document.getElementById("event-player-number");
-        title.textContent = `Detalle de evento: ${option}`;
-        playerInput.value = "";
-        // limpiar selección de zona
-        document.querySelectorAll(".field-cell").forEach((cell) => {
-          cell.classList.remove("active");
+        if (option === "Cambio") {
+          pendingEventOption = option;
+          document.getElementById("event-modal").classList.remove("hidden");
+          const subOutSelect = document.getElementById("sub-out-player");
+          const subInSelect = document.getElementById("sub-in-player");
+          const modalBodySubstitution = document.getElementById("event-modal-body-substitution");
+          modalBodySubstitution.classList.remove("hidden");
+          subOutSelect.innerHTML = '<option value="">Sale...</option>';
+          lineupState.onField.forEach((p) => {
+            const opt = document.createElement("option");
+            opt.value = String(p.id);
+            opt.textContent = `${p.number} - ${p.name}`;
+            subOutSelect.appendChild(opt);
+          });
+          subInSelect.innerHTML = '<option value="">Entra...</option>';
+          lineupState.bench.forEach((p) => {
+            const opt = document.createElement("option");
+            opt.value = String(p.id);
+            opt.textContent = `${p.number} - ${p.name}`;
+            subInSelect.appendChild(opt);
+          });
+          return;
+        }
+        pendingEventOption = pendingEventOption === option ? null : option;
+        document.querySelectorAll('.tag-button[data-category="evento"]').forEach((button) => {
+          button.classList.toggle(
+            "active",
+            pendingEventOption !== null &&
+              button.getAttribute("data-option") === pendingEventOption
+          );
         });
-        modal.classList.remove("hidden");
-      });
-    } else {
-      // Otros botones (incluido "Cambio") se comportan como toggle normal
-      btn.addEventListener("click", () => {
-        toggleSelection(category, option);
-        btn.classList.toggle("active");
       });
     }
   });
@@ -664,24 +893,30 @@ window.addEventListener("DOMContentLoaded", () => {
   const ownBtn = document.getElementById("btn-event-own");
   const rivalBtn = document.getElementById("btn-event-rival");
   if (ownBtn && rivalBtn) {
+    setEventTeamSelection("propio");
     ownBtn.addEventListener("click", () => {
-      currentEventTeam = "propio";
-      ownBtn.classList.add("active");
-      rivalBtn.classList.remove("active");
+      setEventTeamSelection("propio");
+      renderPlayerGrid();
     });
     rivalBtn.addEventListener("click", () => {
-      currentEventTeam = "rival";
-      rivalBtn.classList.add("active");
-      ownBtn.classList.remove("active");
+      setEventTeamSelection("rival");
+      renderPlayerGrid();
     });
   }
 
-  // Selección de zona del campo en el modal
-  document.querySelectorAll(".field-cell").forEach((cell) => {
+  document.querySelectorAll(".pitch-zone").forEach((cell) => {
     cell.addEventListener("click", () => {
-      document.querySelectorAll(".field-cell").forEach((c) => c.classList.remove("active"));
-      cell.classList.add("active");
-      currentEventMeta.zone = cell.getAttribute("data-zone") || "";
+      setPitchZone(cell.getAttribute("data-zone") || "");
+    });
+  });
+
+  document.querySelectorAll(".modifier-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const category = chip.getAttribute("data-category");
+      const option = chip.getAttribute("data-option");
+      if (!category || !option) return;
+      toggleSelection(category, option);
+      chip.classList.toggle("active");
     });
   });
 
@@ -689,11 +924,16 @@ window.addEventListener("DOMContentLoaded", () => {
   const modal = document.getElementById("event-modal");
   const modalCancel = document.getElementById("event-modal-cancel");
   const modalOk = document.getElementById("event-modal-ok");
+  const modalBodySubstitution = document.getElementById(
+    "event-modal-body-substitution"
+  );
+  const subOutSelect = document.getElementById("sub-out-player");
+  const subInSelect = document.getElementById("sub-in-player");
 
   modalCancel.addEventListener("click", () => {
     modal.classList.add("hidden");
     pendingEventOption = null;
-    currentEventMeta = { playerNumber: "", zone: "" };
+    modalBodySubstitution.classList.add("hidden");
   });
 
   modalOk.addEventListener("click", () => {
@@ -701,6 +941,58 @@ window.addEventListener("DOMContentLoaded", () => {
       modal.classList.add("hidden");
       return;
     }
+
+    if (pendingEventOption === "Cambio") {
+      const outId = subOutSelect.value;
+      const inId = subInSelect.value;
+      if (!outId || !inId || outId === inId) {
+        return;
+      }
+      const outPlayer = lineupState.onField.find((p) => String(p.id) === outId);
+      const inPlayer = lineupState.bench.find((p) => String(p.id) === inId);
+      if (!outPlayer || !inPlayer) {
+        return;
+      }
+
+      // Actualizar estado local de alineación
+      lineupState.onField = lineupState.onField.filter(
+        (p) => p.id !== outPlayer.id
+      );
+      lineupState.bench = lineupState.bench.filter(
+        (p) => p.id !== inPlayer.id
+      );
+      lineupState.onField.push(inPlayer);
+      lineupState.bench.push(outPlayer);
+
+      // Registrar evento de cambio
+      selections["evento"] = new Set(["Cambio"]);
+      const baseSelections = selectionsToObject ? selectionsToObject() : {};
+      const total = elapsed + (running ? Date.now() - startTime : 0);
+      const payload = {
+        matchId,
+        period: getCurrentPeriod(),
+        tMatchMs: total,
+        selections: {
+          ...baseSelections,
+          equipo: [
+            currentEventTeam === "propio" ? "Equipo propio" : "Equipo rival",
+          ],
+          cambio_out: [outPlayer.number],
+          cambio_in: [inPlayer.number],
+        },
+      };
+      fetch("/api/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }).then(() => syncRecentEvents());
+      renderPlayerGrid();
+
+      modal.classList.add("hidden");
+      pendingEventOption = null;
+      return;
+    }
+
     const playerInput = document.getElementById("event-player-number");
     currentEventMeta.playerNumber = playerInput.value.trim();
 
@@ -723,7 +1015,32 @@ window.addEventListener("DOMContentLoaded", () => {
       });
 
     modal.classList.add("hidden");
+
+    // Registrar evento inmediatamente al cerrar el modal
+    registerEvent();
   });
 
   updateTimerDisplay();
+  renderRecentEvents();
+  updateScoreboard();
+  renderPlayerGrid();
+
+  document.getElementById("event-player-number").addEventListener("input", (event) => {
+    currentEventMeta.playerNumber = event.target.value.trim();
+    document.querySelectorAll(".number-cell").forEach((cell) => {
+      cell.classList.toggle("active", cell.textContent === currentEventMeta.playerNumber);
+    });
+  });
+
+  document.getElementById("discard-event").addEventListener("click", () => {
+    resetEventComposer();
+  });
+
+  document.getElementById("confirm-event").addEventListener("click", () => {
+    if (!pendingEventOption) {
+      return;
+    }
+    selections.evento = new Set([pendingEventOption]);
+    registerEvent();
+  });
 });
