@@ -5,7 +5,7 @@ const {
   DB_HOST = "localhost",
   DB_PORT = "3306",
   DB_USER = "root",
-  DB_PASSWORD = "N1mp3dr0j0",
+  DB_PASSWORD = "",
   DB_NAME = "soccertag",
 } = process.env;
 
@@ -66,9 +66,14 @@ export async function runMigrations() {
         username VARCHAR(255) NOT NULL UNIQUE,
         password VARCHAR(255) NOT NULL,
         team_name VARCHAR(255) NULL,
+        team_config TEXT NULL,
         created_at DATETIME NOT NULL
       )
     `);
+
+    if (!(await columnExists(conn, "users", "team_config"))) {
+      await conn.query(`ALTER TABLE users ADD COLUMN team_config TEXT NULL`);
+    }
 
     // --- Catalog tables (analytics model) ---
     await conn.query(`
