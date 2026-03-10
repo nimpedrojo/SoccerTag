@@ -1,5 +1,5 @@
 import { FastifyInstance } from "fastify";
-import { pool, newMatchId } from "../db";
+import { pool, newMatchId } from "../db.js";
 
 export async function registerAppRoutes(app: FastifyInstance) {
   // --- User / team management ---
