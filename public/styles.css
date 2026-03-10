@@ -246,6 +246,21 @@ body {
   font-weight: 800;
 }
 
+.plays-as-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0.22rem 0 0.12rem;
+  padding: 0.18rem 0.42rem;
+  border-radius: 999px;
+  background: #eef2f5;
+  color: #4c5868;
+  font-size: 0.54rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
 .timer-display {
   font-variant-numeric: tabular-nums;
   font-size: 1.9rem;

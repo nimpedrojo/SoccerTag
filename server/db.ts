@@ -151,6 +151,11 @@ export async function runMigrations() {
     if (!(await columnExists(conn, "matches", "round"))) {
       await conn.query(`ALTER TABLE matches ADD COLUMN round VARCHAR(64) NULL`);
     }
+    if (!(await columnExists(conn, "matches", "plays_as"))) {
+      await conn.query(
+        `ALTER TABLE matches ADD COLUMN plays_as VARCHAR(8) NOT NULL DEFAULT 'home'`
+      );
+    }
     if (!(await columnExists(conn, "matches", "home_team_id"))) {
       await conn.query(`ALTER TABLE matches ADD COLUMN home_team_id INT NULL`);
     }

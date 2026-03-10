@@ -2,6 +2,21 @@ import { FastifyInstance } from "fastify";
 import { pool, newMatchId } from "../db.js";
 
 export async function registerAppRoutes(app: FastifyInstance) {
+  function normalizePlaysAs(value?: string) {
+    return value === "away" ? "away" : "home";
+  }
+
+  function getScoreFieldForTeamLabel(teamLabel?: string, playsAs: "home" | "away" = "home") {
+    if (!teamLabel) return null;
+    if (teamLabel === "propio" || teamLabel === "Equipo propio") {
+      return playsAs === "home" ? "home_goals" : "away_goals";
+    }
+    if (teamLabel === "rival" || teamLabel === "Equipo rival") {
+      return playsAs === "home" ? "away_goals" : "home_goals";
+    }
+    return null;
+  }
+
   // --- User / team management ---
   app.post<{
     Body: { username: string; password: string; teamName?: string };
@@ -357,7 +372,8 @@ export async function registerAppRoutes(app: FastifyInstance) {
     try {
       await conn.beginTransaction();
 
-      const isHome = playsAs === "home";
+      const normalizedPlaysAs = normalizePlaysAs(playsAs);
+      const isHome = normalizedPlaysAs === "home";
       const homeTeamName = isHome ? home : away;
       const awayTeamName = isHome ? away : home;
 
@@ -379,6 +395,7 @@ export async function registerAppRoutes(app: FastifyInstance) {
             created_at,
             home_team,
             away_team,
+            plays_as,
             season_id,
             date,
             venue,
@@ -386,13 +403,14 @@ export async function registerAppRoutes(app: FastifyInstance) {
             home_team_id,
             away_team_id,
             notes
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           matchId,
           now,
           homeTeamName,
           awayTeamName,
+          normalizedPlaysAs,
           seasonId ?? null,
           date ?? null,
           venue ?? null,
@@ -471,12 +489,16 @@ export async function registerAppRoutes(app: FastifyInstance) {
         ]
       );
 
-      // Actualización de marcador básica: evento "Gol" + equipo propio/rival
-      if (evento === "Gol" && (equipo === "propio" || equipo === "rival")) {
-        const field =
-          equipo === "propio" ? "home_goals" : "away_goals";
+      const [matchRows] = await conn.query(
+        "SELECT plays_as FROM matches WHERE match_id = ? FOR UPDATE",
+        [matchId]
+      );
+      const matchRow = (matchRows as any[])[0];
+      const playsAs = normalizePlaysAs(matchRow?.plays_as);
+      const scoreField = getScoreFieldForTeamLabel(equipo, playsAs);
+      if (evento === "Gol" && scoreField) {
         await conn.query(
-          `UPDATE matches SET ${field} = ${field} + 1 WHERE match_id = ?`,
+          `UPDATE matches SET ${scoreField} = ${scoreField} + 1 WHERE match_id = ?`,
           [matchId]
         );
       }
@@ -503,7 +525,7 @@ export async function registerAppRoutes(app: FastifyInstance) {
     try {
       await conn.beginTransaction();
       const [rows] = await conn.query(
-        "SELECT id FROM events WHERE match_id = ? ORDER BY created_at DESC LIMIT 1 FOR UPDATE",
+        "SELECT id, selections FROM events WHERE match_id = ? ORDER BY created_at DESC LIMIT 1 FOR UPDATE",
         [matchId]
       );
       const row = (rows as any[])[0];
@@ -511,7 +533,30 @@ export async function registerAppRoutes(app: FastifyInstance) {
         await conn.rollback();
         return reply.code(404).send({ error: "No events to undo" });
       }
+      const parsedSelections = JSON.parse(row.selections || "{}");
+      const evento = Array.isArray(parsedSelections.evento)
+        ? parsedSelections.evento[0]
+        : undefined;
+      const equipo = Array.isArray(parsedSelections.equipo)
+        ? parsedSelections.equipo[0]
+        : undefined;
+      const [matchRows] = await conn.query(
+        "SELECT plays_as FROM matches WHERE match_id = ? FOR UPDATE",
+        [matchId]
+      );
+      const matchRow = (matchRows as any[])[0];
+      const playsAs = normalizePlaysAs(matchRow?.plays_as);
+      const scoreField = getScoreFieldForTeamLabel(equipo, playsAs);
+
       await conn.query("DELETE FROM events WHERE id = ?", [row.id]);
+      if (evento === "Gol" && scoreField) {
+        await conn.query(
+          `UPDATE matches
+           SET ${scoreField} = CASE WHEN ${scoreField} > 0 THEN ${scoreField} - 1 ELSE 0 END
+           WHERE match_id = ?`,
+          [matchId]
+        );
+      }
       await conn.commit();
       return { ok: true };
     } catch (err) {
@@ -527,7 +572,7 @@ export async function registerAppRoutes(app: FastifyInstance) {
   }>("/api/matches/:id/export", async (request, reply) => {
     const matchId = request.params.id;
     const [matches] = await pool.query(
-      "SELECT match_id, created_at, home_team, away_team FROM matches WHERE match_id = ?",
+      "SELECT match_id, created_at, home_team, away_team, home_goals, away_goals, plays_as FROM matches WHERE match_id = ?",
       [matchId]
     );
     const matchRow = (matches as any[])[0];
@@ -539,11 +584,37 @@ export async function registerAppRoutes(app: FastifyInstance) {
       "SELECT period, t_match_ms as tMatchMs, t_wall as tWall, selections, notes FROM events WHERE match_id = ? ORDER BY created_at ASC",
       [matchId]
     );
+    const [lineupRows] = await pool.query(
+      `
+        SELECT
+          p.number as playerNumber,
+          ml.minute_in as minuteIn
+        FROM match_lineups ml
+        INNER JOIN players p ON p.id = ml.player_id
+        INNER JOIN matches m
+          ON m.match_id = ml.match_id
+        WHERE ml.match_id = ?
+          AND (
+            (m.plays_as = 'home' AND ml.team_id = m.home_team_id)
+            OR (m.plays_as = 'away' AND ml.team_id = m.away_team_id)
+          )
+        ORDER BY
+          CASE WHEN ml.minute_in = 0 THEN 0 ELSE 1 END,
+          CAST(p.number AS UNSIGNED),
+          p.number
+      `,
+      [matchId]
+    );
 
     const meta = {
       matchId: matchRow.match_id,
       createdAt: matchRow.created_at,
       teams: { home: matchRow.home_team, away: matchRow.away_team },
+      playsAs: normalizePlaysAs(matchRow.plays_as),
+      score: {
+        home: Number(matchRow.home_goals ?? 0),
+        away: Number(matchRow.away_goals ?? 0),
+      },
       configVersion: 1,
     };
 
@@ -556,7 +627,18 @@ export async function registerAppRoutes(app: FastifyInstance) {
       notes: e.notes ?? undefined,
     }));
 
-    return { meta, events: mappedEvents };
+    const lineup = {
+      ownTeam: {
+        starting: (lineupRows as any[])
+          .filter((row) => Number(row.minuteIn) === 0)
+          .map((row) => String(row.playerNumber)),
+        bench: (lineupRows as any[])
+          .filter((row) => row.minuteIn === null)
+          .map((row) => String(row.playerNumber)),
+      },
+    };
+
+    return { meta, lineup, events: mappedEvents };
   });
 
   // Listado y borrado de partidos

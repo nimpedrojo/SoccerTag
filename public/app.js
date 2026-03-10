@@ -334,6 +334,16 @@ function updateTimerDisplay() {
   document.getElementById("timer-display").textContent = `${mm}:${ss}`;
 }
 
+function updatePlaysAsIndicator() {
+  const indicator = document.getElementById("plays-as-indicator");
+  const playsAsSelect = document.getElementById("plays-as-select");
+  if (!indicator || !playsAsSelect) return;
+  indicator.textContent =
+    playsAsSelect.value === "away"
+      ? "Equipo propio: Visitante"
+      : "Equipo propio: Local";
+}
+
 function formatMatchTime(tMatchMs) {
   const minutes = Math.floor(tMatchMs / 60000);
   const seconds = String(Math.floor((tMatchMs % 60000) / 1000)).padStart(2, "0");
@@ -554,6 +564,7 @@ async function startMatch() {
   document.getElementById(
     "teams-label"
   ).textContent = `${home} vs ${away}`;
+  updatePlaysAsIndicator();
   document.getElementById("match-footer-id").textContent = `Partido: ${matchId}`;
   document.getElementById("match-sync-status").textContent = "Estado: en vivo";
   document.getElementById("match-setup").classList.add("hidden");
@@ -581,6 +592,7 @@ function endMatch() {
   document.getElementById("match-setup").classList.remove("hidden");
   recentEvents = [];
   matchScore = { home: 0, away: 0 };
+  updatePlaysAsIndicator();
   document.getElementById("match-footer-id").textContent = "Partido: pendiente";
   document.getElementById("match-sync-status").textContent = "Estado: local";
   renderRecentEvents();
@@ -715,7 +727,12 @@ window.addEventListener("DOMContentLoaded", () => {
     .getElementById("btn-start-record")
     .addEventListener("click", () => {
       showMatchScreen();
+      updatePlaysAsIndicator();
     });
+
+  document.getElementById("plays-as-select").addEventListener("change", () => {
+    updatePlaysAsIndicator();
+  });
 
   // Volver al inicio (pantalla principal) al pulsar en el nombre
   document.getElementById("app-brand").addEventListener("click", () => {
@@ -1030,6 +1047,7 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   updateTimerDisplay();
+  updatePlaysAsIndicator();
   renderRecentEvents();
   updateScoreboard();
   renderPlayerGrid();

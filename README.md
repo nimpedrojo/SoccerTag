@@ -91,7 +91,17 @@ Los eventos que actualmente se pueden guardar (coinciden con los botones del tab
   Elimina el último evento del partido.
 
 - `GET /api/matches/:id/export`  
-  Devuelve `meta` + `events[]` desde MySQL listo para exportar/analizar.
+  Devuelve `meta` + `lineup` + `events[]` desde MySQL listo para exportar/analizar.
+
+  Ejemplo de `lineup`:
+  ```json
+  {
+    "ownTeam": {
+      "starting": ["1", "20", "28"],
+      "bench": ["26", "35"]
+    }
+  }
+  ```
 
 ## Despliegue en VPS (producción)
 1. Copiar el código al VPS (git clone o rsync).
