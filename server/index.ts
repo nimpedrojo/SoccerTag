@@ -3,9 +3,9 @@ import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { registerExportRoute } from "./routes/export";
-import { registerAppRoutes } from "./routes/app";
-import { runMigrations } from "./db";
+import { registerExportRoute } from "./routes/export.js";
+import { registerAppRoutes } from "./routes/app.js";
+import { runMigrations } from "./db.js";
 
 const port = Number(process.env.PORT) || 3000;
 const host = process.env.HOST || "0.0.0.0";

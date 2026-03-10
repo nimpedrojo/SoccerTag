@@ -1,4 +1,4 @@
-import { pool } from "./db";
+import { pool } from "./db.js";
 
 type ETLParams = {
   matchId?: string;
@@ -245,7 +245,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     }
   }
 
-  const { runMigrations } = await import("./db");
+  const { runMigrations } = await import("./db.js");
 
   (async () => {
     await runMigrations();
@@ -256,4 +256,3 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.exit(1);
   });
 }
-

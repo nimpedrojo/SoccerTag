@@ -1,5 +1,5 @@
 import { FastifyInstance } from "fastify";
-import { sheetsClient } from "../sheets/client";
+import { sheetsClient } from "../sheets/client.js";
 
 export async function registerExportRoute(app: FastifyInstance) {
   app.post<{
