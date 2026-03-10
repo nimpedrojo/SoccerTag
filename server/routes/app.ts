@@ -20,8 +20,8 @@ export async function registerAppRoutes(app: FastifyInstance) {
 
     const now = new Date();
     const [result] = await pool.query(
-      "INSERT INTO users (username, password, team_name, created_at) VALUES (?, ?, ?, ?)",
-      [username, password, teamName ?? null, now]
+      "INSERT INTO users (username, password, team_name, team_config, created_at) VALUES (?, ?, ?, ?, ?)",
+      [username, password, teamName ?? null, null, now]
     );
 
     const insertId = (result as any).insertId as number;
@@ -154,7 +154,7 @@ export async function registerAppRoutes(app: FastifyInstance) {
     }
 
     const [rows] = await pool.query(
-      "SELECT id, password, team_name FROM users WHERE username = ?",
+      "SELECT id, password, team_name, team_config FROM users WHERE username = ?",
       [username]
     );
     const row = (rows as any[])[0];
@@ -166,23 +166,33 @@ export async function registerAppRoutes(app: FastifyInstance) {
       userId: row.id,
       username,
       teamName: row.team_name ?? null,
+      teamConfig: row.team_config ? JSON.parse(row.team_config) : null,
     };
   });
 
   app.post<{
-    Body: { userId: number; teamName: string };
+    Body: {
+      userId: number;
+      teamName: string;
+      players?: { name: string; number: string; position?: string; isStarter?: boolean }[];
+    };
   }>("/api/user/team", async (request, reply) => {
-    const { userId, teamName } = request.body;
+    const { userId, teamName, players } = request.body;
     if (!userId || !teamName) {
       return reply
         .code(400)
         .send({ error: "userId and teamName are required" });
     }
 
-    await pool.query("UPDATE users SET team_name = ? WHERE id = ?", [
+    const teamConfig = JSON.stringify({
       teamName,
-      userId,
-    ]);
+      players: Array.isArray(players) ? players : [],
+    });
+
+    await pool.query(
+      "UPDATE users SET team_name = ?, team_config = ? WHERE id = ?",
+      [teamName, teamConfig, userId]
+    );
     return { ok: true };
   });
 

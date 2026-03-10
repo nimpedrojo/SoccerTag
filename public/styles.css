@@ -73,7 +73,7 @@ body {
 
 .player-row {
   display: grid;
-  grid-template-columns: 2fr 0.8fr 0.8fr auto auto;
+  grid-template-columns: 2fr 0.8fr 0.9fr 1fr auto;
   gap: 0.5rem;
   align-items: center;
 }
@@ -88,6 +88,23 @@ body {
 
 .player-row input[type="text"]:nth-of-type(2) {
   max-width: 100px;
+}
+
+.starter-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.45rem;
+  min-width: 96px;
+  font-size: 0.82rem;
+  color: #4d5868;
+  white-space: nowrap;
+}
+
+.starter-toggle input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
 }
 
 .team-tag-toggle .active {

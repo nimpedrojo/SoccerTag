@@ -64,7 +64,10 @@ function loadTeamFromStorage() {
   const key = `soccertag_team_${currentUser.username}`;
   const raw = localStorage.getItem(key);
   if (!raw) {
-    teamConfig = { teamName: currentUser.teamName || "", players: [] };
+    teamConfig = currentUser.teamConfig || {
+      teamName: currentUser.teamName || "",
+      players: [],
+    };
     return;
   }
   try {
@@ -303,6 +306,11 @@ function addPlayerRow(player) {
   starterCheckbox.title = "Titular";
   starterCheckbox.checked = Boolean(player?.isStarter);
 
+  const starterLabel = document.createElement("label");
+  starterLabel.className = "starter-toggle";
+  starterLabel.appendChild(starterCheckbox);
+  starterLabel.appendChild(document.createTextNode("Titular"));
+
   const removeBtn = document.createElement("button");
   removeBtn.type = "button";
   removeBtn.className = "btn btn-sm btn-outline-danger";
@@ -314,8 +322,8 @@ function addPlayerRow(player) {
   row.appendChild(nameInput);
   row.appendChild(numberInput);
   row.appendChild(positionInput);
+  row.appendChild(starterLabel);
   row.appendChild(removeBtn);
-  row.appendChild(starterCheckbox);
   playersContainer.appendChild(row);
 }
 
@@ -787,9 +795,10 @@ window.addEventListener("DOMContentLoaded", () => {
       await fetch("/api/user/team", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: currentUser.userId, teamName }),
+        body: JSON.stringify({ userId: currentUser.userId, teamName, players }),
       });
       currentUser.teamName = teamName;
+      currentUser.teamConfig = teamConfig;
       saveUserToStorage();
       msgEl.textContent = "Equipo guardado";
       setTimeout(() => {
