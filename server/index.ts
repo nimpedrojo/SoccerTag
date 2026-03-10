@@ -1,3 +1,4 @@
+import "dotenv/config";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
@@ -20,8 +21,8 @@ async function main() {
 
   await app.register(cors, { origin: true });
   await app.register(fastifyStatic, {
-    // __dirname = <repo>/server → raíz del proyecto es ".."
-    root: path.join(__dirname, "..", "public"),
+    // En runtime compilado, __dirname = <repo>/server/dist
+    root: path.join(__dirname, "..", "..", "public"),
     prefix: "/",
   });
 

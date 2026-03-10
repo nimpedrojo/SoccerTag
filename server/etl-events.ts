@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { pool } from "./db.js";
 
 type ETLParams = {
